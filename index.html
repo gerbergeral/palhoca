@@ -663,7 +663,7 @@ body{font-family:'Sora',sans-serif;background:linear-gradient(170deg,#0a1628 0%,
 <div class="toast" id="toast"></div>
 <script>
 
-const SHEET_URL="https://script.google.com/macros/s/AKfycbyMvZflaFiptjrIS35_z-EXBHrS-dO3yDq9JnD9ajnD0o5VWJQe8AGruaWLNDlxKybT/exec";
+const SHEET_URL="https://script.google.com/macros/s/AKfycbyx_wvEHx5U23YmMwKrOATLDbh0XQMOMcxHie0o6jP25B58ZtyB3h8tkAa6WSZcP5FU/exec";
 
 function sel(id,val){var e=document.getElementById(id);if(e)e.textContent=val;}
 const M1=60000,M2=70000,SU=80000,VP=1428;
@@ -1225,8 +1225,8 @@ function carregarLocal(){
   return false;
 }
 
-function carregarUltimoSalvo(){
-  // Carrega do localStorage - instantâneo e confiável
+async function carregarUltimoSalvo(){
+  // 1. Carrega localStorage imediatamente
   try{
     var saved = localStorage.getItem('gerber_ultimo_palhoca');
     if(saved){
@@ -1235,153 +1235,28 @@ function carregarUltimoSalvo(){
       applySnap(r);
       showUltimoBanners(r);
       updateAnteriores(r);
-      setSyncStatus('ok','Dados carregados · Último salvo por '+(r.nome||'?')+' às '+(r.hora||'?'));
+      setSyncStatus('loading','Verificando dados mais recentes...');
+    }
+  }catch(e){}
+
+  // 2. Busca do Sheets para sincronizar entre dispositivos
+  try{
+    var resp = await fetch(SHEET_URL + '?action=carregar');
+    var registros = await resp.json();
+    if(registros && registros.length > 0){
+      var r = registros[0];
+      localStorage.setItem('gerber_ultimo_palhoca', JSON.stringify(r));
+      _ultimo = r;
+      applySnap(r);
+      showUltimoBanners(r);
+      updateAnteriores(r);
+      setSyncStatus('ok','Sincronizado · Último salvo por '+(r.nome||'?')+' às '+(r.hora||'?'));
     } else {
       setSyncStatus('ok','Pronto · nenhum dado salvo ainda');
     }
   }catch(e){
-    setSyncStatus('ok','Pronto');
+    if(_ultimo) setSyncStatus('err','Sem conexão — exibindo dados locais');
+    else setSyncStatus('err','Sem conexão com Google Sheets');
   }
 }
-
-// Re-update anteriores when user changes a value
-['sv','rv','ov','sp','rp','op','s_novas','s_remat','s_aval','r_novas','r_remat','r_aval','o_novas','o_remat','o_aval','sa_prod','ra_prod','ab_prod','ou_prod'].forEach(function(id){
-  var el=document.getElementById(id);
-  if(el)el.addEventListener('input',function(){if(_ultimo)updateAnteriores(_ultimo);});
-});
-
-
-// ---- SENHA ----
-var SENHA_HASH = 'liderpalhoça';
-var _modoEdicao = false;
-
-function verificarSenha(){
-  var input = document.getElementById('senhaInput').value;
-  if(input === SENHA_HASH){
-    _modoEdicao = true;
-    document.getElementById('senhaOverlay').style.display='none';
-    document.getElementById('modoLeituraBar').style.display='none';
-    sessionStorage.setItem('gerber_auth_palhoca','1');
-    habilitarEdicao(true);
-  } else {
-    document.getElementById('senhaErro').style.display='block';
-    document.getElementById('senhaInput').value='';
-    document.getElementById('senhaInput').focus();
-  }
-}
-
-function modoVisualizacao(){
-  _modoEdicao = false;
-  document.getElementById('senhaOverlay').style.display='none';
-  document.getElementById('modoLeituraBar').style.display='flex';
-  habilitarEdicao(false);
-}
-
-function pedirSenha(){
-  document.getElementById('senhaOverlay').style.display='flex';
-  document.getElementById('senhaInput').value='';
-  document.getElementById('senhaErro').style.display='none';
-  setTimeout(function(){document.getElementById('senhaInput').focus();},100);
-}
-
-function habilitarEdicao(ativo){
-  document.querySelectorAll('input[type="number"], input[type="text"].sinput').forEach(function(el){
-    el.disabled = !ativo;
-    el.style.opacity = ativo ? '1' : '0.6';
-    el.style.cursor = ativo ? '' : 'not-allowed';
-  });
-  document.querySelectorAll('.sbtn').forEach(function(el){
-    el.disabled = !ativo;
-    el.style.opacity = ativo ? '1' : '0.5';
-  });
-}
-
-// Check session on load
-(function(){
-  if(sessionStorage.getItem('gerber_auth_palhoca')==='1'){
-    _modoEdicao=true;
-    document.getElementById('senhaOverlay').style.display='none';
-    habilitarEdicao(true);
-  } else {
-    habilitarEdicao(false);
-  }
-})();
-
-
-// ---- RETENÇÃO ----
-function recalcRetencao(){
-  var cancelamentos = ii('cancelamentos');
-  var ativosInicio = ii('ativos_inicio');
-  var ativosFim = ii('ativos_fim');
-  var renovTotal = ii('renovTotal');
-  var renovFeitos = ii('renovFeitos');
-  var naoRenovados = Math.max(renovTotal - renovFeitos, 0);
-
-  // Novas entradas: soma novas vendas + rematrículas de sabrina + rayara + outros
-  var entradas = ii('s_novas') + ii('s_remat') + ii('r_novas') + ii('r_remat') + ii('o_novas') + ii('o_remat');
-  var totalPerdas = cancelamentos + naoRenovados;
-  var saldo = entradas - totalPerdas;
-
-  sel('ret_cancelamentos', cancelamentos);
-  sel('ret_nao_renovados', naoRenovados);
-  sel('ret_total_perdas', totalPerdas);
-  sel('ret_entradas', entradas);
-  sel('ret_ativos_inicio_disp', ativosInicio);
-  sel('ret_ativos_fim_disp', ativosFim);
-
-  var saldoEl = document.getElementById('ret_saldo');
-  if(saldoEl){
-    saldoEl.textContent = (saldo >= 0 ? '+' : '') + saldo;
-    saldoEl.className = 'ret-num ' + (saldo > 0 ? 'ret-positivo' : saldo < 0 ? 'ret-negativo' : 'ret-neutro');
-  }
-  sel('ret_saldo_sub', saldo > 0 ? 'a unidade cresceu!' : saldo < 0 ? 'a unidade encolheu' : 'empatou');
-
-  // Variação de ativos
-  if(ativosInicio > 0 && ativosFim > 0){
-    var variacaoNum = ativosFim - ativosInicio;
-    var variacaoPct = ((variacaoNum / ativosInicio) * 100).toFixed(1);
-    var sinal = variacaoNum >= 0 ? '+' : '';
-    sel('ret_variacao_disp', 'variação: ' + sinal + variacaoNum + ' (' + sinal + variacaoPct + '%)');
-  }
-
-  // Resultado
-  var card = document.getElementById('ret_resultado_card');
-  var icon = document.getElementById('ret_res_icon');
-  var msg = document.getElementById('ret_res_msg');
-  var sub = document.getElementById('ret_res_sub');
-  if(!card) return;
-
-  if(ativosInicio === 0 && ativosFim === 0){
-    card.className='ret-resultado vazio';
-    sel('ret_res_icon','📊');sel('ret_res_msg','Preencha os dados para ver o resultado');sel('ret_res_sub','');
-    return;
-  }
-
-  if(saldo > 0 || (ativosFim > ativosInicio && ativosFim > 0)){
-    card.className='ret-resultado positivo';
-    sel('ret_res_icon','📈');
-    sel('ret_res_msg','Unidade em crescimento!');
-    sel('ret_res_sub','Saldo positivo de '+(saldo>0?'+':'')+saldo+' alunos no mês');
-  } else if(saldo < 0 || (ativosFim < ativosInicio && ativosFim > 0)){
-    card.className='ret-resultado negativo';
-    sel('ret_res_icon','📉');
-    sel('ret_res_msg','Atenção — unidade perdendo alunos');
-    sel('ret_res_sub','Saldo negativo de '+saldo+' alunos. Ação necessária!');
-  } else {
-    card.className='ret-resultado neutro';
-    sel('ret_res_icon','➡️');
-    sel('ret_res_msg','Estabilizada');
-    sel('ret_res_sub','Entradas compensaram as saídas');
-  }
-}
-
-</script>
-
-<canvas id="confetti-canvas"></canvas>
-<div class="meta-celebration" id="celebCard">
-  <span class="celeb-emoji" id="celebEmoji">🏆</span>
-  <div class="celeb-msg" id="celebMsg">Meta batida!</div>
-  <div class="celeb-sub" id="celebSub"></div>
-</div>
-</body>
-</html>
+>
