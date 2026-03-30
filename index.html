@@ -575,7 +575,7 @@ body{font-family:'Sora',sans-serif;background:linear-gradient(170deg,#0a1628 0%,
     </div>
     <div>
       <div style="font-size:11px;color:var(--txt2-b);font-weight:600;margin-bottom:5px">Ativos no fechamento</div>
-      <div class="campo" style="margin:0"><label style="display:none"></label><input type="number" id="ativos_fim" value="0" min="0" step="1" oninput="recalcRetencao()" style="width:100%"></div>
+      <div class="campo" style="margin:0"><label style="display:none"></label><input type="number" id="ativos_fim" value="0" min="0" step="1" style="width:100%;opacity:0.7;cursor:not-allowed" readonly tabindex="-1"></div>
     </div>
   </div>
 </div>
@@ -893,7 +893,15 @@ function applySnap(v){
     v.ab_prod=(parseFloat(v.ab_supl)||0)+(parseFloat(v.ab_cami)||0)+(parseFloat(v.ab_outr)||0);
     v.ou_prod=(parseFloat(v.ou_supl)||0)+(parseFloat(v.ou_cami)||0)+(parseFloat(v.ou_outr)||0);
   }
-  Object.keys(v).forEach(id=>{if(document.getElementById(id))document.getElementById(id).value=v[id];});
+  Object.keys(v).forEach(function(id){
+    var el=document.getElementById(id);
+    if(el){
+      var wasDisabled=el.disabled;
+      el.disabled=false;
+      el.value=v[id];
+      el.disabled=wasDisabled;
+    }
+  });
   recalcMeta();recalcRem();recalcProd();recalcRetencao();
 }
 
@@ -1319,7 +1327,6 @@ function habilitarEdicao(ativo){
 function recalcRetencao(){
   var cancelamentos = ii('cancelamentos');
   var ativosInicio = ii('ativos_inicio');
-  var ativosFim = ii('ativos_fim');
   var renovTotal = ii('renovTotal');
   var renovFeitos = ii('renovFeitos');
   var naoRenovados = Math.max(renovTotal - renovFeitos, 0);
@@ -1328,6 +1335,11 @@ function recalcRetencao(){
   var entradas = ii('s_novas') + ii('s_remat') + ii('r_novas') + ii('r_remat') + ii('o_novas') + ii('o_remat');
   var totalPerdas = cancelamentos + naoRenovados;
   var saldo = entradas - totalPerdas;
+
+  // Ativos fechamento calculado automaticamente
+  var ativosFim = ativosInicio + entradas - totalPerdas;
+  var el = document.getElementById('ativos_fim');
+  if(el){ el.value = ativosFim; }
 
   sel('ret_cancelamentos', cancelamentos);
   sel('ret_nao_renovados', naoRenovados);
