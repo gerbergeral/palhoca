@@ -362,6 +362,7 @@ body{font-family:'Sora',sans-serif;background:linear-gradient(170deg,#0a1628 0%,
     <div class="remg">
       <div class="rc">
         <div class="rn"><div class="rav al">AL</div><span class="rnm">Alexsandra</span></div>
+        <div class="rl"><span class="rlbl">Vendas contabilizadas</span><span class="rv" id="r_al_qtd" style="color:var(--txt2-b)">0 vendas</span></div>
         <div class="rl"><span class="rlbl">Bônus vendas</span><span class="rv" id="r_al_v">R$ 0</span></div>
         <div class="rl"><span class="rlbl">Bônus renovações</span><span class="rv" id="r_al_r">R$ 0</span></div>
         <div class="rl"><span class="rlbl">Bônus avaliações</span><span class="rv" id="r_al_a">R$ 0</span></div>
@@ -369,6 +370,7 @@ body{font-family:'Sora',sans-serif;background:linear-gradient(170deg,#0a1628 0%,
       </div>
       <div class="rc">
         <div class="rn"><div class="rav da">DA</div><span class="rnm">Dalila</span></div>
+        <div class="rl"><span class="rlbl">Vendas contabilizadas</span><span class="rv" id="r_da_qtd" style="color:var(--txt2-b)">0 vendas</span></div>
         <div class="rl"><span class="rlbl">Bônus vendas</span><span class="rv" id="r_da_v">R$ 0</span></div>
         <div class="rl"><span class="rlbl">Bônus renovações</span><span class="rv" id="r_da_r">R$ 0</span></div>
         <div class="rl"><span class="rlbl">Bônus avaliações</span><span class="rv" id="r_da_a">R$ 0</span></div>
@@ -585,7 +587,7 @@ function goTab(n,el){
   el.classList.add('active');
 }
 
-function calcBV(t){if(t<15)return 0;return Math.floor(t/15)*100+((t%15)>=10?(t%15)*5:0);}
+function calcBV(t){return t>=10?t*5:0;}
 
 function recalc(){recalcMeta();recalcRem();recalcProd();recalcRet();}
 
@@ -665,9 +667,11 @@ function recalcRem(){
   var rb=pct>=85?100:pct>=70?50:0;
   var sn=ii('s_novas'),sr=ii('s_remat'),sa=ii('s_aval'),sbv=calcBV(sn+sr),sba=sa*10;
   _remAL=sbv+rb+sba;
+  s('r_al_qtd',(sn+sr)+' vendas'+(sn+sr>=10?'':' — abaixo do mínimo'));
   s('r_al_v',fmt(sbv));s('r_al_r',fmt(rb));s('r_al_a',fmt(sba));s('r_al_t',fmt(_remAL));
   var rn=ii('r_novas'),rr=ii('r_remat'),ra=ii('r_aval'),rbv=calcBV(rn+rr),rba=ra*10;
   _remDA=rbv+rb+rba;
+  s('r_da_qtd',(rn+rr)+' vendas'+(rn+rr>=10?'':' — abaixo do mínimo'));
   s('r_da_v',fmt(rbv));s('r_da_r',fmt(rb));s('r_da_a',fmt(rba));s('r_da_t',fmt(_remDA));
   s('r_out_v',(ii('o_novas')+ii('o_remat'))+' vendas');
   s('r_eq',fmt(_remAL+_remDA));
