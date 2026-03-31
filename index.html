@@ -732,7 +732,7 @@ function getSnap(){
 function applySnap(v){
   if(!v)return;
   if(v.sa_supl!==undefined&&v.sa_prod===undefined){v.sa_prod=(parseFloat(v.sa_supl)||0)+(parseFloat(v.sa_cami)||0)+(parseFloat(v.sa_outr)||0);v.ra_prod=(parseFloat(v.ra_supl)||0)+(parseFloat(v.ra_cami)||0)+(parseFloat(v.ra_outr)||0);v.ab_prod=(parseFloat(v.ab_supl)||0)+(parseFloat(v.ab_cami)||0)+(parseFloat(v.ab_outr)||0);v.ou_prod=(parseFloat(v.ou_supl)||0)+(parseFloat(v.ou_cami)||0)+(parseFloat(v.ou_outr)||0);}
-  ['sv','rv','ov','sp','rp','op','renovTotal','renovFeitos','s_novas','s_remat','s_aval','r_novas','r_remat','r_aval','o_novas','o_remat','o_aval','sa_prod','ra_prod','ab_prod','ou_prod','ativos_inicio','cancelamentos'].forEach(function(id){var el=document.getElementById(id);if(el&&v[id]!==undefined)el.value=parseFloat(v[id])||0;});
+  ['sv','rv','ov','sp','rp','op','renovTotal','renovFeitos','s_novas','s_remat','s_aval','r_novas','r_remat','r_aval','o_novas','o_remat','o_aval','sa_prod','ra_prod','ab_prod','ou_prod','ativos_inicio','cancelamentos'].forEach(function(id){var el=document.getElementById(id);if(el&&v[id]!==undefined&&v[id]!==null&&v[id]!=='')el.value=parseFloat(v[id])||0;else if(el&&(v[id]===''||v[id]===null))el.value=0;});
   recalc();
 }
 
