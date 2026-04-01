@@ -769,6 +769,15 @@ function getSnap(){
     ativos_inicio:ii('ativos_inicio'),cancelamentos:ii('cancelamentos')};
 }
 
+function limparCampos(){
+  ['sv','rv','ov','sp','rp','op','renovTotal','renovFeitos',
+   's_novas','s_remat','s_aval','r_novas','r_remat','r_aval',
+   'o_novas','o_remat','o_aval','sa_prod','ra_prod','ab_prod','ou_prod',
+   'ativos_inicio','cancelamentos'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value=0;
+  });
+  recalc();
+}
 function applySnap(v){
   if(!v)return;
   if(v.sa_supl!==undefined&&v.sa_prod===undefined){v.sa_prod=(parseFloat(v.sa_supl)||0)+(parseFloat(v.sa_cami)||0)+(parseFloat(v.sa_outr)||0);v.ra_prod=(parseFloat(v.ra_supl)||0)+(parseFloat(v.ra_cami)||0)+(parseFloat(v.ra_outr)||0);v.ab_prod=(parseFloat(v.ab_supl)||0)+(parseFloat(v.ab_cami)||0)+(parseFloat(v.ab_outr)||0);v.ou_prod=(parseFloat(v.ou_supl)||0)+(parseFloat(v.ou_cami)||0)+(parseFloat(v.ou_outr)||0);}
@@ -845,7 +854,13 @@ async function carregarUltimoSalvo(){
       ss('ok','Sincronizado · '+(r.nome||'?')+(hora?' às '+hora:''));
       var ui=document.getElementById('ultimoSalvo');if(ui)ui.innerHTML='Último: <strong>'+(r.nome||'?')+'</strong>'+(hora?' às <strong>'+hora+'</strong>':'');
       var cu=document.getElementById('ch_ult');if(cu)cu.textContent='Último: '+(r.nome||'?')+(hora?' às '+hora:'');
-    }else{ss('ok','Conectado · nenhum dado ainda');recalc();}
+    }else{
+      // Sem dados nesse mês — zera todos os campos
+      limparCampos();
+      ss('ok','Sem registros para este mês');
+      var ui=document.getElementById('ultimoSalvo');if(ui)ui.innerHTML='Nenhum registro neste mês';
+      var cu=document.getElementById('ch_ult');if(cu)cu.textContent='Nenhum registro ainda';
+    }
   }catch(e){ss('err','Erro ao sincronizar');recalc();}
 }
 
