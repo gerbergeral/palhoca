@@ -469,7 +469,7 @@ body{font-family:'Sora',sans-serif;background:linear-gradient(170deg,#0a1628 0%,
   </div>
   <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:10px 14px;margin-bottom:.875rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <div style="font-size:12px;color:#fbbf24;font-weight:700">📅 Salvando em:</div>
-    <select id="mesSeletor" style="font-family:'Sora',sans-serif;font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:#1a2e50;color:#fbbf24;outline:none;cursor:pointer;flex:1"></select>
+    <select id="mesSeletor" onchange="trocarMes()" style="font-family:'Sora',sans-serif;font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:#1a2e50;color:#fbbf24;outline:none;cursor:pointer;flex:1"></select>
     <div style="font-size:11px;color:rgba(255,255,255,.4);font-style:italic">Selecione o mês que deseja registrar</div>
   </div>
 
@@ -595,6 +595,11 @@ s('d_dias',diasR+' dias restantes');
     sel.appendChild(opt);
   });
 })();
+function trocarMes(){
+  // Ao trocar o mês, recarrega histórico e último salvo daquele mês
+  carregarUltimoSalvo();
+  carregarHistorico();
+}
 function getMesSelecionado(){
   var sel = document.getElementById('mesSeletor');
   return sel ? sel.value : (['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][now.getMonth()]+'/'+now.getFullYear());
@@ -830,7 +835,9 @@ async function carregarHistorico(){
 async function carregarUltimoSalvo(){
   ss('spin','Sincronizando...');
   try{
-    var resp=await fetch(SHEET_URL+'?action=carregar'),regs=await resp.json();
+    var mesSel=typeof getMesSelecionado==='function'?getMesSelecionado():'';
+    var url=SHEET_URL+'?action=carregar'+(mesSel?'&mes='+encodeURIComponent(mesSel):'');
+    var resp=await fetch(url),regs=await resp.json();
     window._registros=regs;
     if(regs&&regs.length>0){
       var r=regs[0];applySnap(r);
