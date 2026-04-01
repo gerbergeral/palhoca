@@ -464,8 +464,13 @@ body{font-family:'Sora',sans-serif;background:linear-gradient(170deg,#0a1628 0%,
 <!-- ABA COLETA (só com senha) -->
 <div class="page" id="page-coleta">
   <div class="coleta-header">
-    <div class="ch-info">✏️ Coleta de dados · <strong id="ch_mes"></strong></div>
+    <div class="ch-info">✏️ Coleta de dados</div>
     <div class="ch-info" id="ch_ult"></div>
+  </div>
+  <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:10px 14px;margin-bottom:.875rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="font-size:12px;color:#fbbf24;font-weight:700">📅 Salvando em:</div>
+    <select id="mesSeletor" style="font-family:'Sora',sans-serif;font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;border:1px solid rgba(245,158,11,.4);background:#1a2e50;color:#fbbf24;outline:none;cursor:pointer;flex:1"></select>
+    <div style="font-size:11px;color:rgba(255,255,255,.4);font-style:italic">Selecione o mês que deseja registrar</div>
   </div>
 
   <div class="sec">🎯 Vendas por consultora</div>
@@ -566,7 +571,34 @@ var DIAS=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira'
 s('hMes',MESES[now.getMonth()]+' '+now.getFullYear());
 s('hSaud',(h<12?'☀️ Bom dia':h<18?'🌤️ Boa tarde':'🌙 Boa noite')+' · '+DIAS[now.getDay()]+', '+now.getDate()+'/'+String(now.getMonth()+1).padStart(2,'0'));
 s('d_dias',diasR+' dias restantes');
-document.getElementById('ch_mes').textContent=MESES[now.getMonth()]+' '+now.getFullYear();
+// Popula seletor de mês — 24 meses passados + mês atual + 12 meses futuros
+(function(){
+  var sel = document.getElementById('mesSeletor');
+  if(!sel) return;
+  var ABREV=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  // de 24 meses atrás até 12 meses à frente
+  var opcoes = [];
+  for(var i=-24; i<=12; i++){
+    var d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+    var abrev = ABREV[d.getMonth()];
+    var val = abrev+'/'+d.getFullYear();
+    var lbl = MESES[d.getMonth()]+' '+d.getFullYear();
+    opcoes.push({val:val, lbl:lbl, atual:(i===0)});
+  }
+  // Ordena do mais recente para o mais antigo (mais natural para seleção)
+  opcoes.reverse();
+  opcoes.forEach(function(op){
+    var opt = document.createElement('option');
+    opt.value = op.val;
+    opt.textContent = op.lbl;
+    if(op.atual) opt.selected = true;
+    sel.appendChild(opt);
+  });
+})();
+function getMesSelecionado(){
+  var sel = document.getElementById('mesSeletor');
+  return sel ? sel.value : (['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][now.getMonth()]+'/'+now.getFullYear());
+}
 
 var FRASES=["Cada não te deixa mais perto do próximo sim.","Resultados são construídos dia a dia.","Renovar é mais barato que captar — cuide do que já é seu.","A meta de hoje é o mínimo de amanhã.","Consistência supera intensidade — apareça todos os dias.","Um cliente bem atendido traz cinco. Um mal atendido afasta dez.","Cada renovação é uma venda que não precisa ser feita do zero.","Não espere a motivação para agir. Aja para encontrar a motivação.","A equipe que treina junta, vence junta.","Foco, disciplina e resultado — nessa ordem."];
 var DICAS=["💡 Faça follow-up dos leads que não fecharam na semana passada.","💡 Clientes perto de vencer merecem uma ligação hoje.","💡 Pergunte ao cliente como foi a semana de treino — ele se sente valorizado.","💡 Uma avaliação de bioimpedância pode ser o argumento que faltava para renovar.","💡 Compartilhe o progresso da meta com sua equipe — isso energiza."];
@@ -656,15 +688,18 @@ function recalcMeta(){
 }
 
 function recalcRem(){
-  var rt=ii('renovTotal')||1,rf=ii('renovFeitos'),pct=Math.round((rf/rt)*100);
+  var rt=ii('renovTotal'),rf=ii('renovFeitos');
+  if(rt===0){s('d_rpct','—');var bar=document.getElementById('renovBar');if(bar){bar.style.width='0%';bar.className='renov-bar-f';}document.getElementById('rb70').className='rb';document.getElementById('rb85').className='rb';s('d_rst','Preencha os contratos vencendo');s('d_rflt','');}
+  else{
+  var pct=Math.round((rf/rt)*100);
   s('d_rpct',pct+'%');
   var bar=document.getElementById('renovBar');
   if(bar){bar.style.width=Math.min(pct,100)+'%';bar.className='renov-bar-f'+(pct>=85?' ok85':pct>=70?' ok70':'');}
   document.getElementById('rb70').className='rb'+(pct>=70?' on70':'');
   document.getElementById('rb85').className='rb'+(pct>=85?' on85':'');
   s('d_rst',pct>=85?'✅ Meta cheia atingida':pct>=70?'🟡 Meta básica atingida':'⚠️ Abaixo da meta');
-  s('d_rflt',pct<85?'Faltam '+(Math.ceil(rt*0.85)-rf)+' renovações para 85%':'');
-  var rb=pct>=85?100:pct>=70?50:0;
+  s('d_rflt',pct<85?'Faltam '+(Math.ceil(rt*0.85)-rf)+' renovações para 85%':'');}
+  var rb=rt>0?(pct>=85?100:pct>=70?50:0):0;
   var sn=ii('s_novas'),sr=ii('s_remat'),sa=ii('s_aval'),sbv=calcBV(sn+sr),sba=sa*10;
   _remAL=sbv+rb+sba;
   s('r_al_qtd',(sn+sr)+' vendas'+(sn+sr>=10?'':' — abaixo do mínimo'));
@@ -741,7 +776,20 @@ async function salvar(){
   if(!nome){toast('Digite seu nome antes de salvar ✍️','#dc2626');return;}
   var snap=getSnap(),agora=new Date();
   var hora=agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  var data=agora.toLocaleDateString('pt-BR');
+  // Usa o mês selecionado para montar a data
+  var mesSel=getMesSelecionado(); // ex: "Mar/2026"
+  var partesMes=mesSel.split('/');
+  var mesesNum={'Jan':'01','Fev':'02','Mar':'03','Abr':'04','Mai':'05','Jun':'06','Jul':'07','Ago':'08','Set':'09','Out':'10','Nov':'11','Dez':'12'};
+  var mesNum=mesesNum[partesMes[0]]||String(agora.getMonth()+1).padStart(2,'0');
+  // Dia: se mês selecionado é diferente do atual, usa último dia do mês selecionado
+  var anoSel=parseInt(partesMes[1]);
+  var mesSNum=parseInt(mesNum)-1;
+  var diaUso=agora;
+  if(mesSNum!==agora.getMonth()||anoSel!==agora.getFullYear()){
+    // Mês diferente — usa último dia do mês selecionado
+    diaUso=new Date(anoSel,mesSNum+1,0);
+  }
+  var data=String(diaUso.getDate()).padStart(2,'0')+'/'+mesNum+'/'+anoSel;
   var total=gi('sv')+gi('rv')+gi('ov');
   var dados={...snap,nome,data,hora,total};
   var btn=document.getElementById('btnSalvar');
@@ -766,7 +814,7 @@ async function carregarHistorico(){
   list.innerHTML='<div class="hvazio">Carregando...</div>';
   ss('spin','Carregando...');
   try{
-    var resp=await fetch(SHEET_URL+'?action=carregar'),regs=await resp.json();
+    var mesSel=typeof getMesSelecionado==='function'?getMesSelecionado():'';var url=SHEET_URL+'?action=carregar'+(mesSel?'&mes='+encodeURIComponent(mesSel):'');var resp=await fetch(url),regs=await resp.json();
     window._registros=regs;
     if(!regs||!regs.length){list.innerHTML='<div class="hvazio">Nenhum registro ainda</div>';ss('ok','Conectado');return;}
     var htm='';
