@@ -596,7 +596,10 @@ s('d_dias',diasR+' dias restantes');
   });
 })();
 function trocarMes(){
-  // Ao trocar o mês, recarrega histórico e último salvo daquele mês
+  // Limpa campos imediatamente ao trocar de mês
+  limparCampos();
+  var ui=document.getElementById('ultimoSalvo');if(ui)ui.innerHTML='Carregando...';
+  var cu=document.getElementById('ch_ult');if(cu)cu.textContent='Carregando...';
   carregarUltimoSalvo();
   carregarHistorico();
 }
@@ -733,7 +736,7 @@ function recalcProd(){
 
 function recalcRet(){
   var ini=ii('ativos_inicio'),cancel=ii('cancelamentos'),rt=ii('renovTotal')||1,rf=ii('renovFeitos');
-  var nRen=Math.max(rt-rf,0),entradas=ii('s_novas')+ii('s_remat')+ii('r_novas')+ii('r_remat')+ii('o_novas')+ii('o_remat');
+  var nRen=rt>0?Math.max(rt-rf,0):0,entradas=ii('s_novas')+ii('s_remat')+ii('r_novas')+ii('r_remat')+ii('o_novas')+ii('o_remat');
   var perdas=cancel+nRen,saldo=entradas-perdas,fim=ini+saldo;
   s('d_ini',ini);s('d_fim',fim);s('d_entr',entradas);s('d_cancel',cancel);s('d_nren',nRen);s('d_perdas',perdas);
   var sEl=document.getElementById('d_saldo');
