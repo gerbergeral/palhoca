@@ -809,7 +809,7 @@ function recalcMeta(){
   updatePagamento();
 }
 
-function calcBV(t){if(t<=0)return 0;var b=Math.floor(t/15);var e=t%15;return b*100+(e>=10?e*5:0);}
+function calcBV(t){if(t<=0)return 0;var b=Math.floor(t/15);if(b===0)return 0;var e=t%15;return b*100+(e>=10?e*5:0);}
 
 function recalcRem(){
   const rt=ii('renovTotal')||1,rf=ii('renovFeitos');
