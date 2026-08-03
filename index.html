@@ -430,14 +430,14 @@ const CONFIG = {
     // Meta padrão: R$60.000
     periods: [
       { from: '2026-01', to: '2026-06', meta: 60000 },  // Jan-Jun/2026
-      { from: '2026-07', to: '2026-07', meta: 60000 },   // Jul/2026
+      { from: '2026-07', to: '2026-07', meta: 40000 },   // Jul/2026
       { from: '2026-08', to: '2099-12', meta: 60000 },   // Ago/2026 em diante
     ],
     // Histórico completo de metas por mês/ano (usado para renderizar ao voltar meses)
     history: {
       '2026-01': 60000, '2026-02': 60000, '2026-03': 60000, '2026-04': 60000,
       '2026-05': 60000, '2026-06': 60000,
-      '2026-07': 60000,
+      '2026-07': 40000,
       '2026-08': 60000, '2026-09': 60000, '2026-10': 60000,
       '2026-11': 60000, '2026-12': 60000
     }
@@ -782,14 +782,12 @@ function getTotals() {
   // Produtos (valores em reais) — último registro
   const produtosKH = num(last.sp) + num(last.sa_prod);
   const produtosLI = num(last.rp) + num(last.ra_prod);
-  const produtosAM = num(last.ab_prod);
   const produtosOutros = num(last.ou_prod);
-  const totalProdutos = produtosKH + produtosLI + produtosAM + produtosOutros;
+  const totalProdutos = produtosKH + produtosLI + produtosOutros;
 
-  // Crédito 1% (só para Alexsandra, Kayla e Amabile — Outros não)
+  // Crédito 1% (informativo — não entra na folha)
   const creditoKH = Math.round(produtosKH * 0.01);
   const creditoLI = Math.round(produtosLI * 0.01);
-  const creditoAM = Math.round(produtosAM * 0.01);
 
   // Qualidade de venda (% de anuais sobre total de planos)
   const totalPlanos = totalVendas || 1;
@@ -799,7 +797,7 @@ function getTotals() {
   const percAnuaisLI = vendasLI > 0 ? ((r_anuais / vendasLI) * 100).toFixed(1) : '0.0';
   const percAnuaisOutros = vendasOutros > 0 ? ((o_anuais / vendasOutros) * 100).toFixed(1) : '0.0';
 
-  return { sv, rv, ov, s_novas, s_remat, s_aval, r_novas, r_remat, r_aval, o_novas, o_remat, o_aval, s_anuais, r_anuais, o_anuais, renovTotal, renovFeitos, ativosInicio, cancelamentos, totalVendas, vendasKH, vendasLI, vendasOutros, totalAnuais, percAnuais, percAnuaisKH, percAnuaisLI, percAnuaisOutros, produtosKH, produtosLI, produtosAM, produtosOutros, totalProdutos, creditoKH, creditoLI, creditoAM };
+  return { sv, rv, ov, s_novas, s_remat, s_aval, r_novas, r_remat, r_aval, o_novas, o_remat, o_aval, s_anuais, r_anuais, o_anuais, renovTotal, renovFeitos, ativosInicio, cancelamentos, totalVendas, vendasKH, vendasLI, vendasOutros, totalAnuais, percAnuais, percAnuaisKH, percAnuaisLI, percAnuaisOutros, produtosKH, produtosLI, produtosOutros, totalProdutos, creditoKH, creditoLI };
 }
 
 // ==================== META DIARIA DINÂMICA ====================
@@ -905,13 +903,20 @@ function calcBonusVendasVolume(vendas) {
   return 0;
 }
 
-// ==================== BÔNUS PROPORCIONAL META ====================
-function calcBonusProporcional(valAtual, totalEquipe, totalMes, metaAtual) {
+// ==================== BÔNUS PROPORCIONAL META FINANCEIRA ====================
+function calcBonusProporcional(valConsultora, totalEquipe, totalMes, metaAtual) {
   if (totalEquipe === 0) return 0;
   if (totalMes === 0) return 0;
-  const perc = valAtual / totalEquipe;
-  const faixa = totalMes >= metaAtual ? 2 : (totalMes >= metaAtual * 0.7 ? 1 : 0);
-  const bonusTotal = CONFIG.bonusMeta[faixa] || 0;
+  const meta1 = metaAtual;
+  const meta2 = Math.round(meta1 * CONFIG.meta2Pct);
+  const meta3 = Math.round(meta1 * CONFIG.meta3Pct);
+  // Faixa: qual meta foi atingida (Meta 1, Meta 2 ou Meta 3)
+  let bonusTotal = 0;
+  if (totalMes >= meta3) bonusTotal = CONFIG.bonusMeta[2]; // Meta 3 = R$1.000
+  else if (totalMes >= meta2) bonusTotal = CONFIG.bonusMeta[1]; // Meta 2 = R$700
+  else if (totalMes >= meta1) bonusTotal = CONFIG.bonusMeta[0]; // Meta 1 = R$400
+  // Percentual de participação = vendas da consultora / total vendido pela unidade
+  const perc = valConsultora / totalMes;
   return Math.round(perc * bonusTotal * 100) / 100;
 }
 
@@ -1331,27 +1336,32 @@ function renderFolha(t) {
   const bonusAvalKH = t.s_aval * CONFIG.bonusAvaliacao;
   const bonusAvalLI = t.r_aval * CONFIG.bonusAvaliacao;
 
-  // Crédito 1% é INFORMATIVO — não entra na folha
-  const totalKH = t.sv + bonusMetaKH + bonusVendasKH + bonusRenov + bonusAvalKH;
-  const totalLI = t.rv + bonusMetaLI + bonusVendasLI + bonusRenov + bonusAvalLI;
+  // Total geral folha = bônus meta + bônus vendas + renovação + avaliações (não inclui valor vendido)
+  const totalKH = bonusMetaKH + bonusVendasKH + bonusRenov + bonusAvalKH;
+  const totalLI = bonusMetaLI + bonusVendasLI + bonusRenov + bonusAvalLI;
+
+  const percKH = totalMes > 0 ? ((t.sv / totalMes) * 100).toFixed(1) : '0.0';
+  const percLI = totalMes > 0 ? ((t.rv / totalMes) * 100).toFixed(1) : '0.0';
 
   document.getElementById('folhaKH').innerHTML = `
     <div class="stats-row">
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(t.sv)}</div><div class="stat-label">Vendas</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusMetaKH)}</div><div class="stat-label">Bônus Meta</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusVendasKH)}</div><div class="stat-label">Bônus Vendas (${t.vendasKH})</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusAvalKH)}</div><div class="stat-label">Avaliações (${t.s_aval} × R$10)</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusMetaKH)}</div><div class="stat-label">Bônus Meta Financeira (${percKH}% de participação)</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusVendasKH)}</div><div class="stat-label">Bônus Novas Vendas e Rematrículas (${t.vendasKH} planos)</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusRenov)}</div><div class="stat-label">Bônus por Meta de Renovação</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusAvalKH)}</div><div class="stat-label">Bônus Avaliações (${t.s_aval} × R$10)</div></div>
     </div>
+    <div style="margin-top:12px;text-align:center"><div class="stat-value" style="font-size:1.3rem;color:var(--green)">R$ ${fmt(totalKH)}</div><div class="stat-label">Total Geral Folha — Alexsandra</div></div>
     <div class="progress-bar" style="margin-top:8px"><div class="fill green" style="width:${Math.min((t.sv / metaAtual)*100, 100)}%"></div></div>
   `;
 
   document.getElementById('folhaLI').innerHTML = `
     <div class="stats-row">
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(t.rv)}</div><div class="stat-label">Vendas</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusMetaLI)}</div><div class="stat-label">Bônus Meta</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusVendasLI)}</div><div class="stat-label">Bônus Vendas (${t.vendasLI})</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusAvalLI)}</div><div class="stat-label">Avaliações (${t.r_aval} × R$10)</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusMetaLI)}</div><div class="stat-label">Bônus Meta Financeira (${percLI}% de participação)</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusVendasLI)}</div><div class="stat-label">Bônus Novas Vendas e Rematrículas (${t.vendasLI} planos)</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusRenov)}</div><div class="stat-label">Bônus por Meta de Renovação</div></div>
+      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusAvalLI)}</div><div class="stat-label">Bônus Avaliações (${t.r_aval} × R$10)</div></div>
     </div>
+    <div style="margin-top:12px;text-align:center"><div class="stat-value" style="font-size:1.3rem;color:var(--green)">R$ ${fmt(totalLI)}</div><div class="stat-label">Total Geral Folha — Kayla</div></div>
     <div class="progress-bar" style="margin-top:8px"><div class="fill gold" style="width:${Math.min((t.rv / metaAtual)*100, 100)}%"></div></div>
   `;
 
@@ -1368,22 +1378,17 @@ function renderFolha(t) {
   const desempKH = getDesempenho(t.vendasKH);
   const empLI = getDesempenho(t.vendasLI);
 
+  // Renderiza apenas política e destaque
   document.getElementById('resumoFolha').innerHTML = `
-    <table>
-      <tr><th>Consultora</th><th>Vendas</th><th>Bônus Meta</th><th>Bônus Vendas</th><th>Bônus Renovação</th><th>Bônus Avaliação</th><th>Total Folha</th></tr>
-      <tr><td><strong>Alexsandra</strong></td><td>R$ ${fmt(t.sv)}</td><td>R$ ${fmt(bonusMetaKH)}</td><td>R$ ${fmt(bonusVendasKH)}</td><td>R$ ${fmt(bonusRenov)}</td><td>R$ ${fmt(bonusAvalKH)}</td><td><strong>R$ ${fmt(totalKH)}</strong></td></tr>
-      <tr><td><strong>Kayla</strong></td><td>R$ ${fmt(t.rv)}</td><td>R$ ${fmt(bonusMetaLI)}</td><td>R$ ${fmt(bonusVendasLI)}</td><td>R$ ${fmt(bonusRenov)}</td><td>R$ ${fmt(bonusAvalLI)}</td><td><strong>R$ ${fmt(totalLI)}</strong></td></tr>
-    </table>
-
     <div style="margin-top:20px">
-      <h2 style="font-size:1.05rem;margin-bottom:12px;color:var(--primary)">📋 Política de Bonificação — Consultoras</h2>
+      <h2 style="font-size:1.05rem;margin-bottom:12px;color:var(--primary)">📋 Política de Bonificação</h2>
       <div class="card" style="background:#f8f9ff;border-left:4px solid #3f51b5;padding:16px;margin-bottom:16px">
         <div style="font-size:0.88rem;line-height:1.8">
-          <strong>Bônus Meta (proporcional KH/LI):</strong><br>
+          <strong>Bônus Meta Financeira (dividido proporcionalmente):</strong><br>
           Meta 1 atingida (100%) → R$ 400 divididos proporcionalmente<br>
           Meta 2 atingida (110%) → R$ 700 divididos proporcionalmente<br>
           Meta 3 atingida (120%) → R$ 1.000 divididos proporcionalmente<br>
-          <span style="color:#666;font-size:0.78rem">Exemplo: se a meta é R$80.000 e AX vendeu R$45.000 e LI R$35.000, o bônus é dividido 56%/44%</span>
+          <span style="color:#666;font-size:0.78rem">Exemplo: se a meta é R$80.000 e a consultora vendeu 50% do total, ela recebe 50% do bônus</span>
         </div>
         <hr style="margin:10px 0;border:none;border-top:1px solid #e0e0e0">
         <div style="font-size:0.88rem;line-height:1.8">
@@ -1393,9 +1398,9 @@ function renderFolha(t) {
         </div>
         <hr style="margin:10px 0;border:none;border-top:1px solid #e0e0e0">
         <div style="font-size:0.88rem;line-height:1.8">
-          <strong>Bônus Renovação (por consultora):</strong><br>
+          <strong>Bônus por Meta de Renovação (por consultora):</strong><br>
           Taxa ≥ 70% → R$ 50 | Taxa ≥ 85% → R$ 100<br>
-          <span style="color:#666;font-size:0.78rem">Calculado: (rematrículas / novos + rematrículas) × 100</span>
+          <span style="color:#666;font-size:0.78rem">Calculado sobre a taxa de renovação da unidade inteira</span>
         </div>
         <hr style="margin:10px 0;border:none;border-top:1px solid #e0e0e0">
         <div style="font-size:0.88rem;line-height:1.8">
@@ -1404,15 +1409,14 @@ function renderFolha(t) {
         </div>
         <hr style="margin:10px 0;border:none;border-top:1px solid #e0e0e0">
         <div style="font-size:0.88rem;line-height:1.8">
-          <strong>Crédito Produtos (1%) — Informativo:</strong><br>
-          1% do valor de produtos vendidos (Alexsandra, Kayla e Amabile). Outros não geram crédito individual.<br>
-          <span style="color:#e94560">⚠️ Não entra na folha/contracheque. É apenas para consumo no sistema.</span>
+          <strong>Crédito Produtos (1%):</strong><br>
+          1% do valor de produtos vendidos por cada pessoa. Crédito interno para consumo no sistema.<br>
         </div>
       </div>
     </div>
 
     <div style="margin-top:20px">
-      <h2 style="font-size:1.05rem;margin-bottom:12px;color:var(--primary)">📊 Destaque de Desempenho — Planos Vendidos</h2>
+      <h2 style="font-size:1.05rem;margin-bottom:4px;color:var(--primary)">📊 Mínimo Ideal de Planos Vendidos: 40 — Acima disso é ideal</h2>
       <div class="stats-row">
         <div class="stat-item" style="border-left:4px solid ${desempKH.color}">
           <div class="stat-label">Alexsandra</div>
@@ -1435,8 +1439,8 @@ function renderFolha(t) {
         <div class="stat-item" style="border-left:4px solid #4a6fa5">
           <div class="stat-label">Indicador Financeiro</div>
           <div class="stat-value" style="font-size:1.1rem">${t.vendasKH + t.vendasLI} planos</div>
-          <div style="font-size:0.78rem;color:var(--text-light);margin-top:4px">Total da equipe (KH + LI)</div>
-          <div style="font-size:0.72rem;color:var(--text-light);margin-top:2px">Meta de 40+ planos/pessoa para performance adequada</div>
+          <div style="font-size:0.78rem;color:var(--text-light);margin-top:4px">Total da equipe</div>
+          <div style="font-size:0.72rem;color:var(--text-light);margin-top:2px">Mínimo ideal: 40 planos/pessoa</div>
           <div style="margin-top:6px">
             <div class="progress-bar" style="height:6px"><div class="fill blue" style="width:${Math.min(((t.vendasKH+t.vendasLI)/160)*100,100)}%"></div></div>
           </div>
@@ -1863,17 +1867,15 @@ function renderProdutos(t) {
       <div class="stat-item"><div class="stat-value">R$ ${fmt(t.totalProdutos)}</div><div class="stat-label">Total Produtos</div></div>
       <div class="stat-item"><div class="stat-value">R$ ${fmt(t.produtosKH)}</div><div class="stat-label">Alexsandra</div></div>
       <div class="stat-item"><div class="stat-value">R$ ${fmt(t.produtosLI)}</div><div class="stat-label">Kayla</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(t.produtosAM)}</div><div class="stat-label">Amabile</div></div>
       <div class="stat-item"><div class="stat-value">R$ ${fmt(t.produtosOutros)}</div><div class="stat-label">Outros (Unidade)</div></div>
     </div>
     <div class="card" style="margin-top:16px">
       <h2 style="font-size:1rem">💳 Crédito 1% por Pessoa</h2>
-      <p style="font-size:0.78rem;color:#666;margin-bottom:8px">⚠️ Crédito apenas informativo — não entra na folha/contracheque. Usar para consumo no sistema.</p>
+      <p style="font-size:0.78rem;color:#666;margin-bottom:8px">Crédito interno para consumo no sistema.</p>
       <table>
         <tr><th>Pessoa</th><th>Produtos Vendidos</th><th>Crédito (1%)</th></tr>
         <tr><td>Alexsandra</td><td>R$ ${fmt(t.produtosKH)}</td><td><strong>R$ ${fmt(t.creditoKH)}</strong></td></tr>
         <tr><td>Kayla</td><td>R$ ${fmt(t.produtosLI)}</td><td><strong>R$ ${fmt(t.creditoLI)}</strong></td></tr>
-        <tr><td>Amabile</td><td>R$ ${fmt(t.produtosAM)}</td><td><strong>R$ ${fmt(t.creditoAM)}</strong></td></tr>
         <tr style="background:#f0f0f0"><td><strong>Outros</strong></td><td><strong>R$ ${fmt(t.produtosOutros)}</strong></td><td><em>Crédito vai para liderança</em></td></tr>
       </table>
     </div>
@@ -1892,7 +1894,6 @@ function renderHistorico() {
     <td>${r.hora ? formatHour(r.hora) : '—'}</td>
     <td>R$ ${fmt(num(r.sv))}</td>
     <td>R$ ${fmt(num(r.rv))}</td>
-    <td>${r.ab_prod ? String(r.ab_prod) : '—'}</td>
     <td>R$ ${fmt(num(r.ov))}</td>
     <td>${fmt(num(r.renovTotal))}</td>
     <td>${fmt(num(r.renovFeitos))}</td>
@@ -1900,7 +1901,7 @@ function renderHistorico() {
   </tr>`).join('');
   document.getElementById('historicoTable').innerHTML = `
     <table>
-        <tr><th>Nome</th><th>Data Apuração</th><th>Hora</th><th>Alexsandra (R$)</th><th>Kayla (R$)</th><th>Amabile (Produto)</th><th>Outros (R$)</th><th>Renovações Previstas</th><th>Renovações Efetivadas</th><th>Cancelamentos</th></tr>
+        <tr><th>Nome</th><th>Data Apuração</th><th>Hora</th><th>Alexsandra (R$)</th><th>Kayla (R$)</th><th>Outros (R$)</th><th>Renovações Previstas</th><th>Renovações Efetivadas</th><th>Cancelamentos</th></tr>
       ${rows}
     </table>
   `;
@@ -1916,11 +1917,18 @@ function renderLideranca() {
   const totalMes = t.sv + t.rv + t.ov;
   const metaAtual = getMetaAtual();
 
+  const meta1 = metaAtual;
+  const meta2 = Math.round(meta1 * CONFIG.meta2Pct);
+  const meta3 = Math.round(meta1 * CONFIG.meta3Pct);
+
   // Bônus financeiro integral (só com dados reais)
   let bonusFinanceiroLider = 0;
+  let faixaFinanc = 'Sem dados';
   if (totalMes > 0) {
-    const faixa = totalMes >= metaAtual ? 2 : (totalMes >= metaAtual * 0.7 ? 1 : 0);
-    bonusFinanceiroLider = CONFIG.bonusMeta[faixa] || 0;
+    if (totalMes >= meta3) { bonusFinanceiroLider = CONFIG.bonusMeta[2]; faixaFinanc = 'Meta 3'; }
+    else if (totalMes >= meta2) { bonusFinanceiroLider = CONFIG.bonusMeta[1]; faixaFinanc = 'Meta 2'; }
+    else if (totalMes >= meta1) { bonusFinanceiroLider = CONFIG.bonusMeta[0]; faixaFinanc = 'Meta 1'; }
+    else faixaFinanc = 'Não atingida';
   }
 
   // Bônus vendas liderança (60=R$100, 80=R$200, 100=R$300...)
@@ -1935,52 +1943,68 @@ function renderLideranca() {
   // Bônus cancelamento (só com dados reais)
   const cancPerc = t.ativosInicio > 0 ? ((t.cancelamentos / t.ativosInicio) * 100) : 0;
   let bonusCancLider = 0;
-  if (t.ativosInicio > 0 && cancPerc <= 3) bonusCancLider = CONFIG.bonusLiderCanc1;
-  else if (t.ativosInicio > 0 && cancPerc <= 4) bonusCancLider = CONFIG.bonusLiderCanc2;
+  let refCanc = cancPerc > 0 ? 'Acima de 4% — sem bônus' : 'Sem dados';
+  if (t.ativosInicio > 0) {
+    if (cancPerc <= 3) { bonusCancLider = CONFIG.bonusLiderCanc1; refCanc = 'Meta 1 (≤3%)'; }
+    else if (cancPerc <= 4) { bonusCancLider = CONFIG.bonusLiderCanc2; refCanc = 'Meta 2 (≤4%)'; }
+    else refCanc = 'Acima de 4% — sem bônus';
+  }
 
   // Bônus renovação (só com dados reais)
   const totalInscRenov = (t.s_novas + t.s_remat) + (t.r_novas + t.r_remat);
   const totalRenovRenov = t.s_remat + t.r_remat;
   const taxaRenov = totalInscRenov > 0 ? ((totalRenovRenov / totalInscRenov) * 100) : 0;
   let bonusRenovLider = 0;
-  if (totalInscRenov > 0 && taxaRenov >= 85) bonusRenovLider = CONFIG.bonusLiderRenov1;
-  else if (totalInscRenov > 0 && taxaRenov >= 70) bonusRenovLider = CONFIG.bonusLiderRenov2;
+  let refRenov = taxaRenov > 0 ? 'Abaixo de 70% — sem bônus' : 'Sem dados';
+  if (totalInscRenov > 0) {
+    if (taxaRenov >= 85) { bonusRenovLider = CONFIG.bonusLiderRenov1; refRenov = 'Meta 1 (≥85%)'; }
+    else if (taxaRenov >= 70) { bonusRenovLider = CONFIG.bonusLiderRenov2; refRenov = 'Meta 2 (≥70%)'; }
+    else refRenov = 'Abaixo de 70% — sem bônus';
+  }
 
   // Crédito 1% da liderança sobre o total de produtos da unidade
   const bonusLider1pct = Math.round(t.totalProdutos * 0.01);
 
   const totalBonusLider = bonusFinanceiroLider + bonusVendasLider + bonusCancLider + bonusRenovLider;
 
+  const percMeta = totalMes > 0 ? (totalMes / meta1 * 100).toFixed(1) : '0.0';
+
   document.getElementById('liderancaContent').innerHTML = `
+    <h2 style="font-size:1.1rem;margin-bottom:16px;color:var(--primary)">📊 Indicadores de Performance — Liderança</h2>
+
     <div class="card-grid" style="margin-bottom:20px">
       <div class="person-card" style="border-left-color:var(--gold)">
-        <div class="name">Bônus Financeiro</div>
-        <div class="role">Meta atingida: ${totalMes > 0 ? 'Faixa ' + (totalMes >= metaAtual ? 3 : (totalMes >= metaAtual * 0.7 ? 2 : 1)) : 'Sem dados'}</div>
-        <div class="value">R$ ${fmt(bonusFinanceiroLider)}</div>
-        <div class="sub">${totalMes > 0 ? parseFloat((totalMes/metaAtual*100).toFixed(1)) : 0}% da meta</div>
+        <div class="name">Meta Financeira</div>
+        <div class="role" style="font-size:0.72rem">Meta 1: R$ ${fmt(meta1)} | Meta 2: R$ ${fmt(meta2)} | Meta 3: R$ ${fmt(meta3)}</div>
+        <div class="value" style="color:${totalMes >= meta3 ? 'var(--green)' : totalMes >= meta1 ? 'var(--gold)' : '#c0392b'}">R$ ${fmt(totalMes)}</div>
+        <div class="sub">${percMeta}% da Meta 1 — ${faixaFinanc}</div>
+        <div style="font-size:0.78rem;color:${totalMes >= meta1 ? 'var(--green)' : '#c0392b'};margin-top:4px">Bônus: R$ ${fmt(bonusFinanceiroLider)}</div>
       </div>
       <div class="person-card" style="border-left-color:var(--green)">
-        <div class="name">Bônus Vendas</div>
-        <div class="role">${totalVendasUnidade} vendas na unidade</div>
-        <div class="value">R$ ${fmt(bonusVendasLider)}</div>
-        <div class="sub">${totalVendasUnidade >= 60 ? (60 + (faixas-1)*20) + ' vendas base' : 'Faltam ' + (60 - totalVendasUnidade) + ' vendas para ativar'}</div>
+        <div class="name">Novas Vendas e Rematrículas</div>
+        <div class="role" style="font-size:0.72rem">Meta: ≥60 planos | A cada 20 +R$100</div>
+        <div class="value" style="color:${totalVendasUnidade >= 60 ? 'var(--green)' : '#c0392b'}">${totalVendasUnidade} planos</div>
+        <div class="sub">${totalVendasUnidade >= 60 ? (60 + (faixas-1)*20) + ' vendas base' : 'Faltam ' + Math.max(0, 60 - totalVendasUnidade) + ' para ativar'}</div>
+        <div style="font-size:0.78rem;color:${totalVendasUnidade >= 60 ? 'var(--green)' : '#c0392b'};margin-top:4px">Bônus: R$ ${fmt(bonusVendasLider)}</div>
       </div>
       <div class="person-card" style="border-left-color:var(--accent2)">
-        <div class="name">Bônus Cancelamento</div>
-        <div class="role">Taxa: ${cancPerc.toFixed(1)}%</div>
-        <div class="value">R$ ${fmt(bonusCancLider)}</div>
-        <div class="sub">${cancPerc <= 3 ? 'Meta 1 (3%)' : cancPerc <= 4 ? 'Meta 2 (4%)' : 'Sem bônus'}</div>
+        <div class="name">Taxa de Cancelamento</div>
+        <div class="role" style="font-size:0.72rem">Meta 1: ≤3% | Meta 2: ≤4%</div>
+        <div class="value" style="color:${cancPerc <= 4 ? 'var(--green)' : '#c0392b'}">${cancPerc.toFixed(1)}%</div>
+        <div class="sub">${t.ativosInicio > 0 ? t.cancelamentos + ' cancelados de ' + t.ativosInicio + ' ativos' : 'Sem dados'}</div>
+        <div style="font-size:0.78rem;color:${cancPerc <= 4 ? 'var(--green)' : '#c0392b'};margin-top:4px">${refCanc} — Bônus: R$ ${fmt(bonusCancLider)}</div>
       </div>
       <div class="person-card" style="border-left-color:var(--accent)">
-        <div class="name">Bônus Renovação</div>
-        <div class="role">Taxa: ${taxaRenov.toFixed(1)}%</div>
-        <div class="value">R$ ${fmt(bonusRenovLider)}</div>
-        <div class="sub">${taxaRenov >= 85 ? 'Meta 1 (85%)' : taxaRenov >= 70 ? 'Meta 2 (70%)' : 'Sem bônus'}</div>
+        <div class="name">Taxa de Renovação</div>
+        <div class="role" style="font-size:0.72rem">Meta 1: ≥85% | Meta 2: ≥70%</div>
+        <div class="value" style="color:${taxaRenov >= 70 ? 'var(--green)' : '#c0392b'}">${taxaRenov.toFixed(1)}%</div>
+        <div class="sub">${totalInscRenov > 0 ? totalRenovRenov + ' renovados de ' + totalInscRenov + ' previstos' : 'Sem dados'}</div>
+        <div style="font-size:0.78rem;color:${taxaRenov >= 70 ? 'var(--green)' : '#c0392b'};margin-top:4px">${refRenov} — Bônus: R$ ${fmt(bonusRenovLider)}</div>
       </div>
     </div>
 
     <div class="card" style="background:linear-gradient(135deg,#0f2d5a,#1a4a8a);color:#fff;text-align:center;border:2px solid #2d7ef7">
-      <h2 style="color:#fff;margin-bottom:8px">💰 Total Final — Folha Liderança (pago em contracheque)</h2>
+      <h2 style="color:#fff;margin-bottom:8px">💰 Total Final — Folha Liderança</h2>
       <div style="font-size:2.2rem;font-weight:900;color:#2d7ef7;margin:8px 0">R$ ${fmt(totalBonusLider)}</div>
       <div style="font-size:0.82rem;color:rgba(255,255,255,0.7)">
         Financeiro R$ ${fmt(bonusFinanceiroLider)} + Vendas R$ ${fmt(bonusVendasLider)} + Cancelamento R$ ${fmt(bonusCancLider)} + Renovação R$ ${fmt(bonusRenovLider)}
@@ -1988,24 +2012,11 @@ function renderLideranca() {
     </div>
 
     <div class="card" style="background:#f5f5f5;border-left:4px solid #1b5e20">
-      <h2 style="font-size:1rem">📦 Crédito Produtos — Liderança (1%) — Informativo (não entra na folha)</h2>
+      <h2 style="font-size:1rem">📦 Crédito Produtos — Liderança (1%)</h2>
       <div class="stats-row">
         <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusLider1pct)}</div><div class="stat-label">1% de R$ ${fmt(t.totalProdutos)} — total produtos da unidade</div></div>
       </div>
-      <p style="font-size:0.78rem;color:#666;margin-top:8px">💡 Este crédito é para consumo interno no sistema. Não é pago em contracheque.</p>
-    </div>
-
-    <div class="card">
-      <h2>📊 Detalhamento por Bônus (Folha)</h2>
-      <table>
-        <tr><th>Descrição</th><th>Valor</th><th>Condição</th></tr>
-        <tr><td>Bônus Financeiro (meta unidade)</td><td><strong>R$ ${fmt(bonusFinanceiroLider)}</strong></td><td>${totalMes > 0 ? 'Faixa ' + (totalMes >= metaAtual ? 3 : (totalMes >= metaAtual * 0.7 ? 2 : 1)) : 'Sem dados'}</td></tr>
-        <tr><td>Bônus Vendas (${totalVendasUnidade} vendas)</td><td><strong>R$ ${fmt(bonusVendasLider)}</strong></td><td>≥60 vendas</td></tr>
-        <tr><td>Bônus Cancelamento (${t.ativosInicio > 0 ? cancPerc.toFixed(1) : 0}%)</td><td><strong>R$ ${fmt(bonusCancLider)}</strong></td><td>${t.ativosInicio > 0 ? '≤3% ou ≤4%' : 'Sem dados'}</td></tr>
-        <tr><td>Bônus Renovação (${totalInscRenov > 0 ? taxaRenov.toFixed(1) : 0}%)</td><td><strong>R$ ${fmt(bonusRenovLider)}</strong></td><td>${totalInscRenov > 0 ? '≥85% ou ≥70%' : 'Sem dados'}</td></tr>
-        <tr style="background:#f0f0f0"><td><strong>TOTAL FOLHA LIDERANÇA</strong></td><td><strong>R$ ${fmt(totalBonusLider)}</strong></td><td>—</td></tr>
-      </table>
-      <p style="font-size:0.78rem;color:#666;margin-top:8px">📦 Crédito Produtos (1%): R$ ${fmt(bonusLider1pct)} — informativo, não entra no total acima.</p>
+      <p style="font-size:0.78rem;color:#666;margin-top:8px">Crédito interno para consumo no sistema.</p>
     </div>
 
     <div class="card">
@@ -2031,9 +2042,8 @@ function renderLideranca() {
         <span style="color:#666;font-size:0.78rem">Calculado: (rematrículas / novos + rematrículas) × 100</span>
       </div>
       <div class="tip-box" style="font-size:0.88rem;line-height:1.8;margin-top:8px">
-        <strong>Crédito Produtos (1%) — Informativo:</strong><br>
-        1% sobre o total de produtos vendidos por cada consultora (Alexsandra, Kayla e Amabile). O crédito de "Outros" vai para a liderança.<br>
-        <span style="color:#e94560;font-size:0.78rem">⚠️ Este crédito NÃO entra na folha/contracheque. É apenas para consumo no sistema.</span>
+        <strong>Crédito Produtos (1%):</strong><br>
+        1% sobre o total de produtos vendidos pela unidade. Crédito interno para consumo no sistema.
       </div>
     </div>
   `;
@@ -2077,7 +2087,6 @@ function renderPreencher() {
     ov: num(ult.ov),
     sp: num(ult.sp),
     rp: num(ult.rp),
-    ab_prod: num(ult.ab_prod),
     ou_prod: num(ult.ou_prod),
     s_novas: num(ult.s_novas),
     s_remat: num(ult.s_remat),
@@ -2102,10 +2111,9 @@ function renderPreencher() {
       <td style="font-size:0.8rem">${formatDate(r.data)}</td>
       <td style="font-size:0.8rem">R$ ${fmt(num(r.sv))}</td>
       <td style="font-size:0.8rem">R$ ${fmt(num(r.rv))}</td>
-      <td style="font-size:0.8rem">${r.ab_prod || '—'}</td>
       <td style="font-size:0.8rem">R$ ${fmt(num(r.ov))}</td>
     </tr>
-  `).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-light)">Nenhum registro anterior neste mês</td></tr>';
+  `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-light)">Nenhum registro anterior neste mês</td></tr>';
 
   // Helper para label com acumulado
   const accLabel = (field, isReal = true) => {
@@ -2135,7 +2143,7 @@ function renderPreencher() {
     <div class="alert alert-info" style="margin-top:12px">
       <strong>📋 Últimos registros deste mês (para referência):</strong>
       <table style="margin-top:8px">
-        <tr><th>Nome</th><th>Data</th><th>Alexsandra</th><th>Kayla</th><th>Amabile</th><th>Outros</th></tr>
+        <tr><th>Nome</th><th>Data</th><th>Alexsandra</th><th>Kayla</th><th>Outros</th></tr>
         ${historioHtml}
       </table>
     </div>
@@ -2161,7 +2169,6 @@ function renderPreencher() {
     <div class="card-grid">
       <div class="form-group"><label>Alexsandra${accLabel('sp')}</label><input type="number" id="fill_sp" step="0.01" placeholder="0,00"></div>
       <div class="form-group"><label>Kayla${accLabel('rp')}</label><input type="number" id="fill_rp" step="0.01" placeholder="0,00"></div>
-      <div class="form-group"><label>Amabile${accLabel('ab_prod')}</label><input type="number" id="fill_ab_prod" step="0.01" placeholder="0,00"></div>
       <div class="form-group"><label>Outros${accLabel('ou_prod')}</label><input type="number" id="fill_ou_prod" step="0.01" placeholder="0,00"></div>
     </div>
 
@@ -2242,7 +2249,7 @@ async function saveData() {
     o_anuais: num(document.getElementById('fill_o_anuais').value),
     sa_prod: document.getElementById('fill_sp').value || 0,
     ra_prod: document.getElementById('fill_rp').value || 0,
-    ab_prod: document.getElementById('fill_ab_prod').value || 0,
+    ab_prod: 0,
     ou_prod: document.getElementById('fill_ou_prod').value || 0,
     ativos_inicio: num(document.getElementById('fill_ativos_inicio').value),
     cancelamentos: num(document.getElementById('fill_cancelamentos').value)
