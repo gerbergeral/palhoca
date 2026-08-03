@@ -314,10 +314,9 @@ tr:hover { background: #f0f0f0; }
       <h2>🔄 Renovações</h2>
       <div id="renovacoesEquipe">
         <div class="stats-row">
-          <div class="stat-item"><div class="stat-value" id="renovKHI">—</div>                  <div class="stat-label">Alexsandra — Previstas</div></div>
-          <div class="stat-item"><div class="stat-value" id="renovKHR">—</div>                  <div class="stat-label">Alexsandra — Efetivadas</div></div>
-          <div class="stat-item"><div class="stat-value" id="renovLII">—</div>                  <div class="stat-label">Kayla — Previstas</div></div>
-          <div class="stat-item"><div class="stat-value" id="renovLIR">—</div>                  <div class="stat-label">Kayla — Efetivadas</div></div>
+          <div class="stat-item"><div class="stat-value" id="renovPrev">—</div><div class="stat-label">Previstas no Mês</div></div>
+          <div class="stat-item"><div class="stat-value" id="renovEfet">—</div><div class="stat-label">Efetivadas</div></div>
+          <div class="stat-item"><div class="stat-value" id="renovTaxa">—</div><div class="stat-label">Taxa de Renovação</div></div>
         </div>
         <div id="renovBonusInfo" style="margin-top:12px"></div>
       </div>
@@ -1257,7 +1256,8 @@ function renderQualidadeVenda(t) {
 // ==================== RETENÇÃO ====================
 function renderRetencao(t) {
   const baseAtual = t.ativosInicio || 0;
-  const baseFinal = baseAtual - t.cancelamentos + t.renovFeitos;
+  const novasVendas = t.totalVendas || 0;
+  const baseFinal = baseAtual - t.cancelamentos - t.renovTotal + t.renovFeitos + novasVendas;
   const variacao = baseAtual > 0 ? (((baseFinal - baseAtual) / baseAtual) * 100).toFixed(1) : '0.0';
 
   document.getElementById('crescimentoBase').innerHTML = `
@@ -1269,22 +1269,20 @@ function renderRetencao(t) {
     <div class="progress-bar"><div class="fill ${parseFloat(variacao) >= 0 ? 'green' : 'red'}" style="width:${Math.min(Math.abs(parseFloat(variacao)) * 5, 100)}%"></div></div>
   `;
 
-  // Renovações
-  const khInsc = t.s_novas + t.s_remat;
-  const khRenov = t.s_remat;
-  const liInsc = t.r_novas + t.r_remat;
-  const liRenov = t.r_remat;
-  document.getElementById('renovKHI').textContent = khInsc;
-  document.getElementById('renovKHR').textContent = khRenov;
-  document.getElementById('renovLII').textContent = liInsc;
-  document.getElementById('renovLIR').textContent = liRenov;
+  // Renovações (da unidade inteira, não por consultora)
+  const renovPrev = t.renovTotal || 0;
+  const renovEfet = t.renovFeitos || 0;
+  const taxaRenov = renovPrev > 0 ? ((renovEfet / renovPrev) * 100).toFixed(1) : '0.0';
+  const taxaNum = parseFloat(taxaRenov);
 
-  const taxaTotal = (khInsc + liInsc) > 0 ? (((khRenov + liRenov) / (khInsc + liInsc)) * 100).toFixed(1) : '0.0';
-  const taxaNum = parseFloat(taxaTotal);
+  document.getElementById('renovPrev').textContent = renovPrev;
+  document.getElementById('renovEfet').textContent = renovEfet;
+  document.getElementById('renovTaxa').textContent = taxaRenov + '%';
+
   let renovBonusHtml = '';
-  if (taxaNum >= 85) renovBonusHtml = '<div class="alert alert-success">✅ Taxa de renovação ≥ 85% — Bônus de R$ 100 por consultora</div>';
-  else if (taxaNum >= 70) renovBonusHtml = '<div class="alert alert-warning">⚠️ Taxa de renovação ≥ 70% — Bônus de R$ 50 por consultora</div>';
-  else if (khInsc + liInsc > 0) renovBonusHtml = '<div class="alert alert-error">❌ Taxa de renovação abaixo de 70% — Sem bônus</div>';
+  if (renovPrev > 0 && taxaNum >= 85) renovBonusHtml = '<div class="alert alert-success">✅ Taxa de renovação ≥ 85% — Bônus de R$ 100 por consultora</div>';
+  else if (renovPrev > 0 && taxaNum >= 70) renovBonusHtml = '<div class="alert alert-warning">⚠️ Taxa de renovação ≥ 70% — Bônus de R$ 50 por consultora</div>';
+  else if (renovPrev > 0) renovBonusHtml = '<div class="alert alert-error">❌ Taxa de renovação abaixo de 70% — Sem bônus</div>';
   else renovBonusHtml = '<div class="alert alert-info">Sem dados de renovação neste mês.</div>';
   document.getElementById('renovBonusInfo').innerHTML = renovBonusHtml;
 
@@ -1309,12 +1307,13 @@ function renderRetencao(t) {
     <table>
       <tr><th>Indicador</th><th>Valor</th><th>Impacto</th></tr>
       <tr><td>Ativos no início do mês</td><td>${baseAtual}</td><td>—</td></tr>
-      <tr><td>Planos que venceram</td><td>${t.renovTotal}</td><td style="color:#e74c3c">-${t.renovTotal}</td></tr>
-      <tr><td>Renovações efetivadas</td><td>${t.renovFeitos}</td><td style="color:var(--green)">+${t.renovFeitos}</td></tr>
       <tr><td>Cancelamentos</td><td>${cancCanc}</td><td style="color:#e74c3c">-${cancCanc}</td></tr>
+      <tr><td>Renovações previstas (saem da base)</td><td>${t.renovTotal}</td><td style="color:#e74c3c">-${t.renovTotal}</td></tr>
+      <tr><td>Renovações efetivadas (retornam à base)</td><td>${t.renovFeitos}</td><td style="color:var(--green)">+${t.renovFeitos}</td></tr>
+      <tr><td>Novas vendas + rematrículas</td><td>${novasVendas}</td><td style="color:var(--green)">+${novasVendas}</td></tr>
       <tr><td><strong>Base líquida final</strong></td><td><strong>${baseFinal}</strong></td><td><strong>${variacao > 0 ? '+' : ''}${variacao}%</strong></td></tr>
     </table>
-    ${parseFloat(variacao) < 0 ? '<div class="tip-box" style="margin-top:12px"><strong>💡 Insight:</strong> A base diminuiu. Seriam necessárias ' + Math.ceil(Math.abs(baseFinal - baseAtual) / (CONFIG.planoAnualValor/12)) + ' novas vendas para recuperar o crescimento.</div>' : '<div class="alert alert-success" style="margin-top:12px">A unidade cresceu! Parabéns!</div>'}
+    ${parseFloat(variacao) < 0 ? '<div class="tip-box" style="margin-top:12px"><strong>💡 Insight:</strong> A base diminuiu. Seriam necessárias ' + Math.ceil(Math.abs(baseFinal - baseAtual)) + ' novas vendas para recuperar o crescimento.</div>' : '<div class="alert alert-success" style="margin-top:12px">A unidade cresceu! Parabéns!</div>'}
   `;
 }
 
