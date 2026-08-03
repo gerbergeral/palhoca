@@ -166,6 +166,37 @@ tr:hover { background: #f0f0f0; }
 .meta-badge-2 .meta-badge-fill { background:#ffa726; }
 .meta-badge-3 .meta-badge-fill { background:#e53935; }
 
+/* CELEBRAÇÃO */
+.mes-bom-badge {
+  background: linear-gradient(135deg, #1b5e20 0%, #4caf50 50%, #ffd700 100%);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 1.3rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 16px;
+  animation: mesBomPulse 2s ease-in-out infinite, trophySpin 3s ease-in-out infinite;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 0 30px rgba(76,175,80,0.5), 0 0 60px rgba(255,215,0,0.3);
+  letter-spacing: 2px;
+}
+@keyframes mesBomPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes trophySpin {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(30deg); }
+}
+.meta-tingida-destaque {
+  animation: metaGlow 1.5s ease-in-out infinite alternate;
+}
+@keyframes metaGlow {
+  0% { box-shadow: 0 0 10px rgba(76,175,80,0.5); }
+  100% { box-shadow: 0 0 25px rgba(76,175,80,0.9), 0 0 50px rgba(255,215,0,0.4); }
+}
+
 /* INSIGHT BOX */
 .insight-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 20px; border-radius: var(--radius); margin: 16px 0; font-size: 0.92rem; line-height: 1.5; }
 .insight-box strong { display: block; margin-bottom: 4px; font-size: 1rem; }
@@ -393,22 +424,23 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyx_wvEHx5U23YmMwKrOA
 const PASSWORD = 'liderpalhoça';
 
 const CONFIG = {
-  meta2Pct: 1.15,  // Meta 2 = +15% sobre Meta 1
-  meta3Pct: 1.30,  // Meta 3 = +30% sobre Meta 1
+  meta2Pct: 1.10,  // Meta 2 = +10% sobre Meta 1
+  meta3Pct: 1.20,  // Meta 3 = +20% sobre Meta 1
   metas: {
-    // Períodos com metas diferentes (meta1, meta2=+15%, meta3=+30%) — PALHOÇA
+    // Períodos com metas diferentes (meta1, meta2=+10%, meta3=+20%) — PALHOÇA
+    // Meta padrão: R$60.000
     periods: [
-      { from: '2026-01', to: '2026-06', meta: 80000 },  // Jan-Jun/2026
-      { from: '2026-07', to: '2026-07', meta: 40000 },   // Jul/2026
-      { from: '2026-08', to: '2099-12', meta: 70000 },   // Ago/2026 em diante
+      { from: '2026-01', to: '2026-06', meta: 60000 },  // Jan-Jun/2026
+      { from: '2026-07', to: '2026-07', meta: 60000 },   // Jul/2026
+      { from: '2026-08', to: '2099-12', meta: 60000 },   // Ago/2026 em diante
     ],
     // Histórico completo de metas por mês/ano (usado para renderizar ao voltar meses)
     history: {
-      '2026-01': 80000, '2026-02': 80000, '2026-03': 80000, '2026-04': 80000,
-      '2026-05': 80000, '2026-06': 80000,
-      '2026-07': 40000,
-      '2026-08': 70000, '2026-09': 70000, '2026-10': 70000,
-      '2026-11': 70000, '2026-12': 70000
+      '2026-01': 60000, '2026-02': 60000, '2026-03': 60000, '2026-04': 60000,
+      '2026-05': 60000, '2026-06': 60000,
+      '2026-07': 60000,
+      '2026-08': 60000, '2026-09': 60000, '2026-10': 60000,
+      '2026-11': 60000, '2026-12': 60000
     }
   },
   bonusMeta: [400, 700, 1000],
@@ -537,32 +569,35 @@ function closeLogin() {
 function checkLogin() {
   if (document.getElementById('loginPass').value === PASSWORD) {
     closeLogin();
+    // Desbloqueia TODAS as abas de uma vez
     isMonthUnlocked = true;
+    isPreencherUnlocked = true;
+    isLiderancaUnlocked = true;
+    isHistoricoUnlocked = true;
+    isInsightsUnlocked = true;
+    // Mostra todas as tabs ocultas
+    document.querySelectorAll('.hidden-tab').forEach(el => el.classList.remove('hidden-tab'));
+    // Vai para a aba solicitada
     if (pendingLogin === 'preencher') {
-      isPreencherUnlocked = true;
       switchTab('preencher');
       renderPreencher();
     } else if (pendingLogin === 'lideranca') {
-      isLiderancaUnlocked = true;
-      document.querySelector('[data-tab="lideranca"]').classList.remove('hidden-tab');
       switchTab('lideranca');
       renderLideranca();
     } else if (pendingLogin === 'historico') {
-      isHistoricoUnlocked = true;
-      document.querySelector('[data-tab="historico"]').classList.remove('hidden-tab');
       switchTab('historico');
       renderHistorico();
     } else if (pendingLogin === 'insights') {
-      isInsightsUnlocked = true;
-      document.querySelector('[data-tab="insights"]').classList.remove('hidden-tab');
       switchTab('insights');
       renderInsights();
+    } else {
+      const activeTab = document.querySelector('.nav button.active');
+      if (activeTab) switchTab(activeTab.dataset.tab);
     }
     pendingLogin = '';
-    // Desbloqueia o seletor de mês
     updateMonthSelector();
   } else {
-    document.getElementById('loginMsg').textContent = 'Senha incorreta!';
+        document.getElementById('loginMsg').textContent = 'Senha incorreta!';
   }
 }
 
@@ -944,21 +979,32 @@ function renderMeta(t) {
   const perc = totalAtual > 0 ? Math.min((totalAtual / metaAtual) * 100, 100).toFixed(1) : '0.0';
   const fillClass = totalAtual === 0 ? 'blue' : perc >= 100 ? 'green' : perc >= 70 ? 'gold' : 'red';
 
-  // Confetti check — só se houver dados reais e mês atual
-  if (totalAtual > 0 && parseFloat(perc) >= 100) {
-    setTimeout(launchConfetti, 500);
-  }
-
   const meta2 = Math.round(metaAtual * CONFIG.meta2Pct);
   const meta3 = Math.round(metaAtual * CONFIG.meta3Pct);
+  const metaBatiu1 = totalAtual >= metaAtual;
+  const metaBatiu2 = totalAtual >= meta2;
+  const metaBatiu3 = totalAtual >= meta3;
+
+  // Confetti exagerado — quando meta batida
+  if (totalAtual > 0 && metaBatiu1) {
+    launchConfetti();
+    setTimeout(launchConfetti, 800);
+    setTimeout(launchConfetti, 1600);
+  }
   // Progresso geral — direto e claro
   let statusMsg = '';
   let statusColor = '#888';
   if (totalAtual === 0) {
     statusMsg = '📋 Aguardando dados do mês';
     statusColor = '#888';
-  } else if (parseFloat(perc) >= 100) {
-    statusMsg = '🎉 META ATINGIDA!';
+  } else if (metaBatiu3) {
+    statusMsg = '🏆🌟 SUPER META ATINGIDA! VOCÊS SÃO INCRÍVEIS! 🌟🏆';
+    statusColor = '#b8860b';
+  } else if (metaBatiu2) {
+    statusMsg = '🔥 Meta 2 atingida! Parabéns à equipe!';
+    statusColor = '#e65100';
+  } else if (metaBatiu1) {
+    statusMsg = '🎉 META 1 ATINGIDA!';
     statusColor = '#2e7d32';
   } else if (parseFloat(perc) >= 70) {
     statusMsg = '🔥 Quase lá! Faltam R$ ' + fmt(Math.max(metaAtual - totalAtual, 0));
@@ -977,28 +1023,30 @@ function renderMeta(t) {
       <div class="stat-item"><div class="stat-value" style="color:${statusColor};font-size:1.6rem">${perc}%</div><div class="stat-label">Progresso</div></div>
       <div class="stat-item" style="flex:2"><div class="stat-value" style="color:${statusColor};font-size:1rem;text-align:left">${statusMsg}</div></div>
     </div>
+    ${metaBatiu1 ? '<div class="mes-bom-badge">🏆 MÊS BOM — META BATIDA! 🏆</div>' : ''}
     <div class="progress-bar"><div class="fill ${fillClass}" style="width:${perc}%"></div></div>
     <div class="metas-row" style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
-      <div class="meta-badge meta-badge-1">
-        <div class="meta-badge-title">Meta 1</div>
+      <div class="meta-badge meta-badge-1${metaBatiu1 ? ' meta-tingida-destaque' : ''}">
+        <div class="meta-badge-title">${metaBatiu1 ? '✅ Meta 1 ATINGIDA' : 'Meta 1'}</div>
         <div class="meta-badge-value">R$ ${fmt(metaAtual)}</div>
         <div class="meta-badge-pct">${totalAtual > 0 ? Math.min(parseFloat((totalAtual/metaAtual*100).toFixed(1)), 100) : 0}%</div>
         <div class="meta-badge-progress"><div class="meta-badge-fill" style="width:${totalAtual > 0 ? Math.min((totalAtual/metaAtual*100), 100) : 0}%"></div></div>
       </div>
-      <div class="meta-badge meta-badge-2">
-        <div class="meta-badge-title">Meta 2 (+10%)</div>
+      <div class="meta-badge meta-badge-2${metaBatiu2 ? ' meta-tingida-destaque' : ''}">
+        <div class="meta-badge-title">${metaBatiu2 ? '✅ Meta 2 (+10%) ATINGIDA' : 'Meta 2 (+10%)'}</div>
         <div class="meta-badge-value">R$ ${fmt(meta2)}</div>
         <div class="meta-badge-pct">${totalAtual > 0 ? Math.min(parseFloat((totalAtual/meta2*100).toFixed(1)), 100) : 0}%</div>
         <div class="meta-badge-progress"><div class="meta-badge-fill" style="width:${totalAtual > 0 ? Math.min((totalAtual/meta2*100), 100) : 0}%"></div></div>
       </div>
-      <div class="meta-badge meta-badge-3">
-        <div class="meta-badge-title">Meta 3 (+20%)</div>
+      <div class="meta-badge meta-badge-3${metaBatiu3 ? ' meta-tingida-destaque' : ''}">
+        <div class="meta-badge-title">${metaBatiu3 ? '🏆 SUPER META ATINGIDA!' : 'Meta 3 (+20%) — SUPER META'}</div>
         <div class="meta-badge-value">R$ ${fmt(meta3)}</div>
         <div class="meta-badge-pct">${totalAtual > 0 ? Math.min(parseFloat((totalAtual/meta3*100).toFixed(1)), 100) : 0}%</div>
         <div class="meta-badge-progress"><div class="meta-badge-fill" style="width:${totalAtual > 0 ? Math.min((totalAtual/meta3*100), 100) : 0}%"></div></div>
       </div>
     </div>
     ${totalAtual === 0 ? '<div style="margin-top:8px;font-size:0.82rem;color:var(--text-light)">Nenhum dado registrado neste mês ainda.</div>' : ''}
+    ${metaBatiu3 ? '<div style="margin-top:12px;text-align:center;font-size:1.1rem;color:#b8860b;font-weight:700">🏆🏆🏆 A EQUIPE ATINGIU A SUPER META! PARABÉNS A TODOS! 🏆🏆🏆</div>' : metaBatiu2 ? '<div style="margin-top:8px;text-align:center;font-size:0.95rem;color:#e65100;font-weight:700">🎯 Meta 2 atingida! Falta pouco para a SUPER META!</div>' : ''}
   `;
 
   // Insight box
@@ -1097,12 +1145,12 @@ function renderMeta(t) {
         <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM1,0))}</div>
       </div>
       <div class="stat-item" style="border-left:3px solid #ffa726">
-        <div class="stat-label">Meta Diária — Meta 2</div>
+        <div class="stat-label">Meta Diária — Meta 2 (+10%)</div>
         <div class="stat-value" style="color:#e65100">R$ ${fmt(Math.max(dd.metaDiariaM2,0))}</div>
         <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM2,0))}</div>
       </div>
       <div class="stat-item" style="border-left:3px solid #e53935">
-        <div class="stat-label">Meta Diária — Meta 3</div>
+        <div class="stat-label">Meta Diária — Meta 3 (+20%) SUPER META</div>
         <div class="stat-value" style="color:#c62828">R$ ${fmt(Math.max(dd.metaDiariaM3,0))}</div>
         <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM3,0))}</div>
       </div>
@@ -1879,8 +1927,9 @@ function renderLideranca() {
   // Bônus vendas liderança (60=R$100, 80=R$200, 100=R$300...)
   const totalVendasUnidade = t.totalVendas;
   let bonusVendasLider = 0;
+  let faixas = 0;
   if (totalVendasUnidade >= 60) {
-    const faixas = Math.floor((totalVendasUnidade - 60) / 20) + 1;
+    faixas = Math.floor((totalVendasUnidade - 60) / 20) + 1;
     bonusVendasLider = faixas * CONFIG.bonusLiderVendas;
   }
 
