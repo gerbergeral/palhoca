@@ -545,13 +545,13 @@ function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'preencher' || tab === 'lideranca' || tab === 'historico' || tab === 'insights') {
-    document.getElementById('globalMonthBar').style.display = 'none';
-  } else {
-    document.getElementById('globalMonthBar').style.display = 'flex';
-  }
-  // Render insights when switching to it
-  if (tab === 'insights') renderInsights();
+  // O seletor de mês fica sempre visível
+  document.getElementById('globalMonthBar').style.display = 'flex';
+  // Renderiza a aba correta ao trocar de tab
+  if (tab === 'preencher') renderPreencher();
+  else if (tab === 'lideranca') renderLideranca();
+  else if (tab === 'historico') renderHistorico();
+  else if (tab === 'insights') renderInsights();
 }
 
 // ==================== LOGIN ====================
