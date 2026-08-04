@@ -805,8 +805,11 @@ function calcMetaDiariaDinamica(t) {
   const meta1 = getMetaAtual();
   const meta2 = Math.round(meta1 * CONFIG.meta2Pct);
   const totalAtual = t.sv + t.rv + t.ov;
-  const diasUteisRestantes = countWorkingDaysUntilEndOfMonth(new Date());
-  const diasUteisTotais = countWorkingDaysInMonth(new Date().getFullYear(), new Date().getMonth());
+
+  // Usar o mês selecionado, não o mês atual do sistema
+  const selectedDate = parseCurrentMonthToDate();
+  const diasUteisRestantes = countWorkingDaysUntilEndOfMonth(selectedDate);
+  const diasUteisTotais = countWorkingDaysInMonth(selectedDate.getFullYear(), selectedDate.getMonth());
 
   // Meta Diária — Meta 1
   const saldoM1 = Math.max(meta1 - totalAtual, 0);
@@ -824,10 +827,33 @@ function calcMetaDiariaDinamica(t) {
   return { saldoM1, saldoM2, saldoM3, metaDiariaM1, metaDiariaM2, metaDiariaM3, meta1, meta2, meta3, diasUteisRestantes, diasUteisTotais };
 }
 
+// Converte currentMonth (ex: "Jul/2026") para Date
+function parseCurrentMonthToDate() {
+  if (currentMonth) {
+    const partes = currentMonth.split('/');
+    if (partes.length === 2) {
+      const mesNomes = { 'Jan':0,'Fev':1,'Mar':2,'Abr':3,'Mai':4,'Jun':5,'Jul':6,'Ago':7,'Set':8,'Out':9,'Nov':10,'Dez':11 };
+      const ano = parseInt(partes[1]);
+      const mes = mesNomes[partes[0]];
+      if (mes !== undefined) return new Date(ano, mes, 1);
+    }
+  }
+  return new Date();
+}
+
 // ==================== META SEMANAL ====================
 function calcMetaSemanal(t) {
   const metaAtual = getMetaAtual();
-  const now = new Date();
+  const now = parseCurrentMonthToDate();
+  // Se há dados reais, usar a data do último registro como referência para a semana
+  const lastRecord = records.length ? records[0] : null;
+  if (lastRecord && lastRecord.data) {
+    const partes = lastRecord.data.split('/');
+    if (partes.length === 3) {
+      const rDate = new Date(parseInt(partes[2]) + 2000 > 2030 ? parseInt(partes[2]) : parseInt(partes[2]) + 2000, parseInt(partes[1]) - 1, parseInt(partes[0]));
+      now.setTime(rDate.getTime());
+    }
+  }
   const year = now.getFullYear();
   const month = now.getMonth();
   const day = now.getDate();
@@ -855,6 +881,7 @@ function calcMetaSemanal(t) {
   const metaSemanal = diasUteisTotais > 0 ? Math.round(metaAtual * diasUteisSemana / diasUteisTotais) : Math.round(metaAtual / 4);
   const progresso = metaSemanal > 0 ? ((totalSemana / metaSemanal) * 100).toFixed(1) : 0;
 
+  const systemNow = new Date();
   // Dias da semana com resultado
   const diasSemana = [];
   for (let i = 0; i < 7; i++) {
@@ -862,7 +889,7 @@ function calcMetaSemanal(t) {
     d.setDate(d.getDate() + i);
     const dow = d.getDay();
     const isWeekend = dow === 0 || dow === 6;
-    const isFuture = d > now;
+    const isFuture = d > systemNow;
     const dayTotal = records.filter(r => {
       if (!r.data) return false;
       const partes = r.data.split('/');
@@ -921,10 +948,11 @@ function calcBonusProporcional(valConsultora, totalEquipe, totalMes, metaAtual) 
 }
 
 function calcBonusRenovacao(t) {
-  const totalInsc = (t.s_novas + t.s_remat) + (t.r_novas + t.r_remat);
-  const totalRenov = t.s_remat + t.r_remat;
-  if (totalInsc === 0) return 0;
-  const taxa = (totalRenov / totalInsc) * 100;
+  // Taxa de renovação = renovFeitos / renovTotal (da unidade inteira)
+  const renovTotal = t.renovTotal || 0;
+  const renovFeitos = t.renovFeitos || 0;
+  if (renovTotal === 0) return 0;
+  const taxa = (renovFeitos / renovTotal) * 100;
   if (taxa >= 85) return CONFIG.bonusRenov.t85;
   if (taxa >= 70) return CONFIG.bonusRenov.t70;
   return 0;
@@ -1023,7 +1051,7 @@ function renderMeta(t) {
 
   document.getElementById('metaProgresso').innerHTML = `
     <div class="stats-row">
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(totalAtual)}</div><div class="stat-label">Arrecadado</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${metaBatiu1 ? 'var(--green)' : '#c0392b'}">R$ ${fmt(totalAtual)}</div><div class="stat-label">Arrecadado</div></div>
       <div class="stat-item"><div class="stat-value" style="color:${statusColor};font-size:1.6rem">${perc}%</div><div class="stat-label">Progresso</div></div>
       <div class="stat-item" style="flex:2"><div class="stat-value" style="color:${statusColor};font-size:1rem;text-align:left">${statusMsg}</div></div>
     </div>
@@ -1065,21 +1093,21 @@ function renderMeta(t) {
       <div class="name">Alexsandra</div>
       <div class="role">Consultora</div>
       <div class="label">Vendas</div>
-      <div class="value">R$ ${fmt(t.sv)}</div>
+      <div class="value" style="color:${t.sv > 0 ? 'var(--green)' : '#c0392b'}">R$ ${fmt(t.sv)}</div>
       <div class="sub">Planos: ${t.vendasKH} | Anuais: ${t.s_anuais} (${t.percAnuaisKH}%)</div>
     </div>
     <div class="person-card" style="border-left-color:var(--accent2)">
       <div class="name">Kayla</div>
       <div class="role">Consultora</div>
       <div class="label">Vendas</div>
-      <div class="value">R$ ${fmt(t.rv)}</div>
+      <div class="value" style="color:${t.rv > 0 ? 'var(--green)' : '#c0392b'}">R$ ${fmt(t.rv)}</div>
       <div class="sub">Planos: ${t.vendasLI} | Anuais: ${t.r_anuais} (${t.percAnuaisLI}%)</div>
     </div>
     <div class="person-card" style="border-left-color:var(--gold)">
       <div class="name">Outros</div>
       <div class="role">Registro sem bônus folha</div>
       <div class="label">Vendas</div>
-      <div class="value">R$ ${fmt(t.ov)}</div>
+      <div class="value" style="color:${t.ov > 0 ? 'var(--green)' : '#c0392b'}">R$ ${fmt(t.ov)}</div>
       <div class="sub">Vendas: ${t.vendasOutros} | Unidade total: ${t.totalVendas}</div>
     </div>
   `;
@@ -1141,35 +1169,61 @@ function renderMeta(t) {
 
   // Meta diária dinâmica (Meta 1, 2 e 3)
   const dd = calcMetaDiariaDinamica(t);
-  document.getElementById('metaDiaria').innerHTML = `
-    <div class="stats-row">
-      <div class="stat-item" style="border-left:3px solid #4caf50">
-        <div class="stat-label">Meta Diária — Meta 1</div>
-        <div class="stat-value" style="color:#2e7d32">R$ ${fmt(Math.max(dd.metaDiariaM1,0))}</div>
-        <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM1,0))}</div>
+  const mesEncerrado = dd.diasUteisRestantes <= 0;
+
+  if (mesEncerrado) {
+    const totalFinal = t.sv + t.rv + t.ov;
+    const percFinal = metaAtual > 0 ? (totalFinal / metaAtual * 100).toFixed(1) : '0.0';
+    const statusColor = totalFinal >= meta3 ? '#b8860b' : totalFinal >= meta2 ? '#e65100' : totalFinal >= metaAtual ? '#2e7d32' : '#c0392b';
+    document.getElementById('metaDiaria').innerHTML = `
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:1.1rem;font-weight:700;color:${statusColor};margin-bottom:8px">📅 Mês Encerrado — Resumo Final</div>
+        <div class="stats-row">
+          <div class="stat-item"><div class="stat-value" style="color:${statusColor}">${percFinal}%</div><div class="stat-label">Atingido da Meta 1</div></div>
+          <div class="stat-item"><div class="stat-value">R$ ${fmt(totalFinal)}</div><div class="stat-label">Total Arrecadado</div></div>
+          <div class="stat-item"><div class="stat-value">R$ ${fmt(metaAtual)}</div><div class="stat-label">Meta 1</div></div>
+          <div class="stat-item"><div class="stat-value">R$ ${fmt(meta3)}</div><div class="stat-label">Meta 3 (Super)</div></div>
+        </div>
       </div>
-      <div class="stat-item" style="border-left:3px solid #ffa726">
-        <div class="stat-label">Meta Diária — Meta 2 (+10%)</div>
-        <div class="stat-value" style="color:#e65100">R$ ${fmt(Math.max(dd.metaDiariaM2,0))}</div>
-        <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM2,0))}</div>
+    `;
+  } else {
+    document.getElementById('metaDiaria').innerHTML = `
+      <div class="stats-row">
+        <div class="stat-item" style="border-left:3px solid #4caf50">
+          <div class="stat-label">Meta Diária — Meta 1</div>
+          <div class="stat-value" style="color:#2e7d32">R$ ${fmt(Math.max(dd.metaDiariaM1,0))}</div>
+          <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM1,0))}</div>
+        </div>
+        <div class="stat-item" style="border-left:3px solid #ffa726">
+          <div class="stat-label">Meta Diária — Meta 2 (+10%)</div>
+          <div class="stat-value" style="color:#e65100">R$ ${fmt(Math.max(dd.metaDiariaM2,0))}</div>
+          <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM2,0))}</div>
+        </div>
+        <div class="stat-item" style="border-left:3px solid #e53935">
+          <div class="stat-label">Meta Diária — Meta 3 (+20%) SUPER META</div>
+          <div class="stat-value" style="color:#c62828">R$ ${fmt(Math.max(dd.metaDiariaM3,0))}</div>
+          <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM3,0))}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${dd.diasUteisRestantes}</div>
+          <div class="stat-label">Dias Úteis Restantes</div>
+        </div>
       </div>
-      <div class="stat-item" style="border-left:3px solid #e53935">
-        <div class="stat-label">Meta Diária — Meta 3 (+20%) SUPER META</div>
-        <div class="stat-value" style="color:#c62828">R$ ${fmt(Math.max(dd.metaDiariaM3,0))}</div>
-        <div style="font-size:0.72rem;color:var(--text-light)">Saldo: R$ ${fmt(Math.max(dd.saldoM3,0))}</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">${dd.diasUteisRestantes}</div>
-        <div class="stat-label">Dias Úteis Restantes</div>
-      </div>
-    </div>
-  `;
+    `;
+  }
 
   // Meta semanal
   renderMetaSemanalCard(t);
 }
 
 function renderMetaSemanalCard(t) {
+  // Se mês encerrado, não mostrar meta semanal
+  const dd = calcMetaDiariaDinamica(t);
+  if (dd.diasUteisRestantes <= 0) {
+    document.getElementById('metaSemanal').innerHTML = '<div style="text-align:center;padding:12px;color:var(--text-light);font-size:0.9rem">📅 Mês encerrado — Meta semanal não se aplica</div>';
+    return;
+  }
+
   const ms = calcMetaSemanal(t);
   const fillClass = parseFloat(ms.progresso) >= 100 ? 'green' : parseFloat(ms.progresso) >= 70 ? 'gold' : 'red';
 
@@ -1210,12 +1264,12 @@ function renderInsight(t, totalAtual, metaAtual, perc) {
   }
 
   const percNum = parseFloat(perc);
-  const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const dayOfMonth = now.getDate();
-  const isEndOfMonth = dayOfMonth >= 20;
+  const selectedDate = parseCurrentMonthToDate();
+  const lastDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+  const dayOfMonth = lastDay; // Mês selecionado: usar último dia
+  const isEndOfMonth = true; // Se mês selecionado já passou ou é o mês corrente em final, sempre considerar
   const saldoRestante = Math.max(metaAtual - totalAtual, 0);
-  const diasUteisRestantes = countWorkingDaysUntilEndOfMonth(now);
+  const diasUteisRestantes = countWorkingDaysUntilEndOfMonth(selectedDate);
   const metaDiaria = diasUteisRestantes > 0 ? Math.round(saldoRestante / diasUteisRestantes) : 0;
 
   let html = '';
@@ -1281,14 +1335,17 @@ function renderRetencao(t) {
   const taxaNum = parseFloat(taxaRenov);
 
   document.getElementById('renovPrev').textContent = renovPrev;
+  document.getElementById('renovPrev').style.color = '#333';
   document.getElementById('renovEfet').textContent = renovEfet;
+  document.getElementById('renovEfet').style.color = taxaNum >= 70 ? 'var(--green)' : '#c0392b';
   document.getElementById('renovTaxa').textContent = taxaRenov + '%';
+  document.getElementById('renovTaxa').style.color = taxaNum >= 70 ? 'var(--green)' : '#c0392b';
 
   let renovBonusHtml = '';
-  if (renovPrev > 0 && taxaNum >= 85) renovBonusHtml = '<div class="alert alert-success">✅ Taxa de renovação ≥ 85% — Bônus de R$ 100 por consultora</div>';
-  else if (renovPrev > 0 && taxaNum >= 70) renovBonusHtml = '<div class="alert alert-warning">⚠️ Taxa de renovação ≥ 70% — Bônus de R$ 50 por consultora</div>';
-  else if (renovPrev > 0) renovBonusHtml = '<div class="alert alert-error">❌ Taxa de renovação abaixo de 70% — Sem bônus</div>';
-  else renovBonusHtml = '<div class="alert alert-info">Sem dados de renovação neste mês.</div>';
+  if (renovPrev > 0 && taxaNum >= 85) renovBonusHtml = '<div class="alert alert-success" style="background:#e8f5e9;border-left:4px solid #2e7d32">✅ Taxa de renovação ≥ 85% — Bônus de R$ 100 por consultora</div>';
+  else if (renovPrev > 0 && taxaNum >= 70) renovBonusHtml = '<div style="background:#fff3e0;border-left:4px solid #f57c00;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:0.88rem">⚠️ Taxa de renovação ≥ 70% — Bônus de R$ 50 por consultora</div>';
+  else if (renovPrev > 0) renovBonusHtml = '<div style="background:#ffebee;border-left:4px solid #c62828;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:0.88rem;color:#c62828">❌ Taxa de renovação abaixo de 70% — Sem bônus</div>';
+  else renovBonusHtml = '<div style="background:#e3f2fd;border-left:4px solid #1976d2;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:0.88rem">Sem dados de renovação neste mês.</div>';
   document.getElementById('renovBonusInfo').innerHTML = renovBonusHtml;
 
   // Cancelamentos
@@ -1296,14 +1353,20 @@ function renderRetencao(t) {
   const cancCanc = t.cancelamentos || 0;
   const cancPerc = cancInsc > 0 ? ((cancCanc / cancInsc) * 100).toFixed(1) : '—';
   document.getElementById('cancInsc').textContent = cancInsc;
+  document.getElementById('cancInsc').style.color = '#333';
   document.getElementById('cancCanc').textContent = cancCanc;
+  document.getElementById('cancCanc').style.color = '#c0392b';
   document.getElementById('cancPerc').textContent = cancPerc + '%';
+  if (cancPerc !== '—') {
+    const cp = parseFloat(cancPerc);
+    document.getElementById('cancPerc').style.color = cp <= 4 ? 'var(--green)' : '#c0392b';
+  }
   let cancBonusHtml = '';
   if (cancPerc !== '—') {
     const cp = parseFloat(cancPerc);
-    if (cp <= 3) cancBonusHtml = '<div class="alert alert-success">✅ Taxa ≤ 3% — Excelente!</div>';
-    else if (cp <= 4) cancBonusHtml = '<div class="alert alert-warning">⚠️ Taxa ≤ 4% — Meta 2 atingida</div>';
-    else cancBonusHtml = '<div class="alert alert-error">❌ Taxa acima de 4% — Atenção!</div>';
+    if (cp <= 3) cancBonusHtml = '<div style="background:#e8f5e9;border-left:4px solid #2e7d32;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:0.88rem;color:#2e7d32">✅ Taxa ≤ 3% — Excelente! Bônus liberado.</div>';
+    else if (cp <= 4) cancBonusHtml = '<div style="background:#fff3e0;border-left:4px solid #f57c00;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:0.88rem;color:#e65100">⚠️ Taxa ≤ 4% — Meta 2 atingida. Bônus parcial.</div>';
+    else cancBonusHtml = '<div style="background:#ffebee;border-left:4px solid #c62828;padding:10px 12px;border-radius:6px;margin-top:8px;font-size:0.88rem;color:#c62828">❌ Taxa acima de 4% — Sem bônus. Atenção!</div>';
   }
   document.getElementById('cancBonusInfo').innerHTML = cancBonusHtml;
 
@@ -1342,13 +1405,25 @@ function renderFolha(t) {
 
   const percKH = totalMes > 0 ? ((t.sv / totalMes) * 100).toFixed(1) : '0.0';
   const percLI = totalMes > 0 ? ((t.rv / totalMes) * 100).toFixed(1) : '0.0';
+  const metaAtingida = totalMes >= metaAtual;
+  const meta2Atingida = totalMes >= Math.round(metaAtual * CONFIG.meta2Pct);
+  const meta3Atingida = totalMes >= Math.round(metaAtual * CONFIG.meta3Pct);
+
+  // Cores: verde se bônus > 0 (meta atingida), vermelho se = 0 (não atingida)
+  const corMetaKH = bonusMetaKH > 0 ? 'var(--green)' : '#c0392b';
+  const corMetaLI = bonusMetaLI > 0 ? 'var(--green)' : '#c0392b';
+  const corVendasKH = bonusVendasKH > 0 ? 'var(--green)' : '#c0392b';
+  const corVendasLI = bonusVendasLI > 0 ? 'var(--green)' : '#c0392b';
+  const corRenov = bonusRenov > 0 ? 'var(--green)' : '#c0392b';
+  const corAvalKH = bonusAvalKH > 0 ? 'var(--green)' : '#c0392b';
+  const corAvalLI = bonusAvalLI > 0 ? 'var(--green)' : '#c0392b';
 
   document.getElementById('folhaKH').innerHTML = `
     <div class="stats-row">
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusMetaKH)}</div><div class="stat-label">Bônus Meta Financeira (${percKH}% de participação)</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusVendasKH)}</div><div class="stat-label">Bônus Novas Vendas e Rematrículas (${t.vendasKH} planos)</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusRenov)}</div><div class="stat-label">Bônus por Meta de Renovação</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusAvalKH)}</div><div class="stat-label">Bônus Avaliações (${t.s_aval} × R$10)</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corMetaKH}">R$ ${fmt(bonusMetaKH)}</div><div class="stat-label">Bônus Meta Financeira (${percKH}% de participação)</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corVendasKH}">R$ ${fmt(bonusVendasKH)}</div><div class="stat-label">Bônus Novas Vendas e Rematrículas (${t.vendasKH} planos)</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corRenov}">R$ ${fmt(bonusRenov)}</div><div class="stat-label">Bônus por Meta de Renovação</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corAvalKH}">R$ ${fmt(bonusAvalKH)}</div><div class="stat-label">Bônus Avaliações (${t.s_aval} × R$10)</div></div>
     </div>
     <div style="margin-top:12px;text-align:center"><div class="stat-value" style="font-size:1.3rem;color:var(--green)">R$ ${fmt(totalKH)}</div><div class="stat-label">Total Geral Folha — Alexsandra</div></div>
     <div class="progress-bar" style="margin-top:8px"><div class="fill green" style="width:${Math.min((t.sv / metaAtual)*100, 100)}%"></div></div>
@@ -1356,10 +1431,10 @@ function renderFolha(t) {
 
   document.getElementById('folhaLI').innerHTML = `
     <div class="stats-row">
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusMetaLI)}</div><div class="stat-label">Bônus Meta Financeira (${percLI}% de participação)</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusVendasLI)}</div><div class="stat-label">Bônus Novas Vendas e Rematrículas (${t.vendasLI} planos)</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusRenov)}</div><div class="stat-label">Bônus por Meta de Renovação</div></div>
-      <div class="stat-item"><div class="stat-value">R$ ${fmt(bonusAvalLI)}</div><div class="stat-label">Bônus Avaliações (${t.r_aval} × R$10)</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corMetaLI}">R$ ${fmt(bonusMetaLI)}</div><div class="stat-label">Bônus Meta Financeira (${percLI}% de participação)</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corVendasLI}">R$ ${fmt(bonusVendasLI)}</div><div class="stat-label">Bônus Novas Vendas e Rematrículas (${t.vendasLI} planos)</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corRenov}">R$ ${fmt(bonusRenov)}</div><div class="stat-label">Bônus por Meta de Renovação</div></div>
+      <div class="stat-item"><div class="stat-value" style="color:${corAvalLI}">R$ ${fmt(bonusAvalLI)}</div><div class="stat-label">Bônus Avaliações (${t.r_aval} × R$10)</div></div>
     </div>
     <div style="margin-top:12px;text-align:center"><div class="stat-value" style="font-size:1.3rem;color:var(--green)">R$ ${fmt(totalLI)}</div><div class="stat-label">Total Geral Folha — Kayla</div></div>
     <div class="progress-bar" style="margin-top:8px"><div class="fill gold" style="width:${Math.min((t.rv / metaAtual)*100, 100)}%"></div></div>
@@ -1950,13 +2025,13 @@ function renderLideranca() {
     else refCanc = 'Acima de 4% — sem bônus';
   }
 
-  // Bônus renovação (só com dados reais)
-  const totalInscRenov = (t.s_novas + t.s_remat) + (t.r_novas + t.r_remat);
-  const totalRenovRenov = t.s_remat + t.r_remat;
-  const taxaRenov = totalInscRenov > 0 ? ((totalRenovRenov / totalInscRenov) * 100) : 0;
+  // Bônus renovação (só com dados reais) — usa renovTotal/renovFeitos
+  const renovTotal = t.renovTotal || 0;
+  const renovFeitos = t.renovFeitos || 0;
+  const taxaRenov = renovTotal > 0 ? ((renovFeitos / renovTotal) * 100) : 0;
   let bonusRenovLider = 0;
   let refRenov = taxaRenov > 0 ? 'Abaixo de 70% — sem bônus' : 'Sem dados';
-  if (totalInscRenov > 0) {
+  if (renovTotal > 0) {
     if (taxaRenov >= 85) { bonusRenovLider = CONFIG.bonusLiderRenov1; refRenov = 'Meta 1 (≥85%)'; }
     else if (taxaRenov >= 70) { bonusRenovLider = CONFIG.bonusLiderRenov2; refRenov = 'Meta 2 (≥70%)'; }
     else refRenov = 'Abaixo de 70% — sem bônus';
@@ -1998,7 +2073,7 @@ function renderLideranca() {
         <div class="name">Taxa de Renovação</div>
         <div class="role" style="font-size:0.72rem">Meta 1: ≥85% | Meta 2: ≥70%</div>
         <div class="value" style="color:${taxaRenov >= 70 ? 'var(--green)' : '#c0392b'}">${taxaRenov.toFixed(1)}%</div>
-        <div class="sub">${totalInscRenov > 0 ? totalRenovRenov + ' renovados de ' + totalInscRenov + ' previstos' : 'Sem dados'}</div>
+        <div class="sub">${renovTotal > 0 ? renovFeitos + ' renovados de ' + renovTotal + ' previstos' : 'Sem dados'}</div>
         <div style="font-size:0.78rem;color:${taxaRenov >= 70 ? 'var(--green)' : '#c0392b'};margin-top:4px">${refRenov} — Bônus: R$ ${fmt(bonusRenovLider)}</div>
       </div>
     </div>
